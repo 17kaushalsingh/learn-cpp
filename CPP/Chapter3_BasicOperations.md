@@ -30,31 +30,30 @@
 
 ## Operator Precedence (Highest to Lowest)
 
+### High Priority Operators
+
 ```mermaid
 graph TD
-    A["Operator Precedence"] --> B["Highest Priority"]
-    A --> C["Lowest Priority"]
+    A["Highest Priority"] --> B["Scope Resolution ::"]
+    A --> C["Function Call () Array Access []"]
+    A --> D["Postfix ++ --"]
+    A --> E["Prefix ++ -- ! ~ + -"]
+    A --> F["Multiplicative * / %"]
+    A --> G["Additive + -"]
+    A --> H["Shift << >>"]
+    A --> I["Relational < <= > >="]
+    A --> J["Equality == != "]
+    A --> K["Bitwise AND OR XOR"]
+    A --> L["Logical AND"]
+```
 
-    B --> D["Scope Resolution ::"]
-    B --> E["Function Call () Array Access []"]
-    B --> F["Postfix ++ --"]
-    B --> G["Prefix ++ -- ! ~ + -"]
+### Low Priority Operators
 
-    H["Middle Priority"] --> I["Multiplicative * / %"]
-    H --> J["Additive + -"]
-    H --> K["Shift << >>"]
-    H --> L["Relational < <= > >="]
-    H --> M["Equality == != "]
-    H --> N["Bitwise AND OR XOR"]
-    H --> O["Logical AND"]
-
-    C --> P["Assignment Operators"]
-    C --> Q["Comma"]
-
-    style A fill:#e1f5fe
-    style B fill:#c8e6c9
-    style C fill:#ffcdd2
-    style H fill:#fff3e0
+```mermaid
+graph TD
+    A["Lowest Priority"] --> B["Assignment = += -= *= /= %="]
+    A --> C["Logical OR"]
+    A --> D["Comma ,"]
 ```
 
 ## Key Interview Points
