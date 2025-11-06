@@ -2,159 +2,158 @@
 
 ## Table of Contents
 
-### Core DBMS Chapters (20 Topics) 📚
+### Core DBMS Chapters (17 Topics) 📚
 
-#### 1. Introduction to Databases 📊
-- **[Chapter 1: Database Fundamentals](Chapter1_DatabaseFundamentals.md)** - Database Basics
-  - What is a Database?
-  - DBMS vs File System
-  - Database architecture
+#### 1. Introduction 📊
+- **[Chapter 1: Introduction](Chapter1_Introduction.md)** - DBMS Overview
+  - What is DBMS?
+  - Database basics and importance
+  - Data management evolution
+  - DBMS applications
+
+#### 2. DBMS Architecture 🏗️
+- **[Chapter 2: DBMS_Architecture](Chapter2_DBMS_Architecture.md)** - System Architecture
+  - Three-level architecture
+  - Database Administrator (DBA) role
   - Data independence
+  - Database users and interfaces
 
-#### 2. Database Models 🏗️
-- **[Chapter 2: Data Models](Chapter2_DataModels.md)** - Database Modeling
-  - Hierarchical model
-  - Network model
-  - Relational model
-  - NoSQL models
+#### 3. ER Model 🔗
+- **[Chapter 3: ER_Model](Chapter3_ER_Model.md)** - Entity-Relationship Modeling
+  - Entities, attributes, relationships
+  - Cardinality and participation constraints
+  - ER diagram notation
+  - Relationship types
 
-#### 3. Relational Model 🔗
-- **[Chapter 3: Relational Model](Chapter3_RelationalModel.md)** - Relational Concepts
+#### 4. Extended ER Features 🎯
+- **[Chapter 4: Extended_ER](Chapter4_Extended_ER.md)** - Advanced ER Concepts
+  - Specialization and generalization
+  - Aggregation and composition
+  - Category (union) types
+  - Weak entity sets
+
+#### 5. ER Diagram Formulation 🎨
+- **[Chapter 5: ER_Design](Chapter5_ER_Design.md)** - Design Thinking
+  - How to think and formulate ER diagrams
+  - Design principles and best practices
+  - Common pitfalls and solutions
+  - Real-world case studies
+
+#### 6. Case Study: Facebook 🌐
+- **[Chapter 6: Facebook_CaseStudy](Chapter6_Facebook_CaseStudy.md)** - Practical Application
+  - Designing ER model of Facebook
+  - Complex relationships
+  - Scalability considerations
+  - Real-world implementation challenges
+
+#### 7. Relational Model 📊
+- **[Chapter 7: Relational_Model](Chapter7_Relational_Model.md)** - Relational Concepts
   - Relations, attributes, tuples
-  - Keys (Primary, Foreign, Candidate)
+  - Keys (Primary, Foreign, Candidate, Super)
   - Integrity constraints
-  - Relational algebra
+  - Relational algebra operations
 
-#### 4. SQL Fundamentals 💻
-- **[Chapter 4: SQL Basics](Chapter4_SQLBasics.md)** - SQL Introduction
+#### 8. ER to Relational Mapping 🔄
+- **[Chapter 8: ER_To_Relational](Chapter8_ER_To_Relational.md)** - Model Transformation
+  - Converting entities to relations
+  - Mapping relationships
+  - Handling weak entities
+  - Transforming inheritance hierarchies
+
+#### 9. SQL (Complete) 💻
+- **[Chapter 9: SQL](Chapter9_SQL.md)** - SQL One Shot
   - DDL, DML, DCL, TCL commands
-  - Basic SQL queries
-  - Data types and constraints
-  - Simple joins
+  - Basic to advanced SQL queries
+  - Joins, subqueries, set operations
+  - Aggregate functions and grouping
+  - Views, indexes, and constraints
 
-#### 5. Advanced SQL 🔧
-- **[Chapter 5: Advanced SQL](Chapter5_AdvancedSQL.md)** - Complex Queries
-  - Complex joins (INNER, OUTER, CROSS)
-  - Subqueries and nested queries
-  - Aggregate functions
-  - GROUP BY and HAVING
+#### 10. Normalization 📋
+- **[Chapter 10: Normalization](Chapter10_Normalization.md)** - Database Normalization
+  - Functional dependencies
+  - Normal forms (1NF, 2NF, 3NF, BCNF)
+  - Decomposition algorithms
+  - Normalization vs denormalization
 
-#### 6. Normalization 📋
-- **[Chapter 6: Normalization](Chapter6_Normalization.md)** - Database Normalization
-  - First Normal Form (1NF)
-  - Second Normal Form (2NF)
-  - Third Normal Form (3NF)
-  - Boyce-Codd Normal Form (BCNF)
+#### 11. ACID Properties & Transactions 🔐
+- **[Chapter 11: ACID_Transactions](Chapter11_ACID_Transactions.md)** - Transaction Management
+  - ACID properties (Atomicity, Consistency, Isolation, Durability)
+  - Transaction states and lifecycle
+  - Concurrent transaction issues
+  - Scheduling and serializability
 
-#### 7. Transaction Management 🔄
-- **[Chapter 7: Transactions](Chapter7_Transactions.md)** - Transaction Concepts
-  - ACID properties
-  - Transaction states
-  - Concurrent transactions
-  - Scheduling
-
-#### 8. Concurrency Control ⚖️
-- **[Chapter 8: ConcurrencyControl](Chapter8_ConcurrencyControl.md)** - Managing Concurrency
-  - Lock-based protocols
-  - Two-phase locking
-  - Deadlock handling
-  - Timestamp ordering
-
-#### 9. Recovery Systems 🛠️
-- **[Chapter 9: Recovery](Chapter9_Recovery.md)** - Database Recovery
-  - Failure classification
+#### 12. Atomicity Implementation ⚙️
+- **[Chapter 12: Atomicity](Chapter12_Atomicity.md)** - Transaction Recovery
   - Log-based recovery
+  - Shadow paging
   - Checkpoints
   - Recovery algorithms
 
-#### 10. Indexing 📚
-- **[Chapter 10: Indexing](Chapter10_Indexing.md)** - Database Indexing
+#### 13. Indexing 📚
+- **[Chapter 13: Indexing](Chapter13_Indexing.md)** - Database Indexing
   - Primary and secondary indexes
-  - B+ trees
-  - Hash indexes
-  - Index optimization
+  - B+ tree indexing
+  - Hash indexing
+  - Multi-level indexing
+  - Index optimization strategies
 
-#### 11. Query Processing ⚡
-- **[Chapter 11: QueryProcessing](Chapter11_QueryProcessing.md)** - Query Optimization
-  - Query parsing and optimization
-  - Query execution plans
-  - Cost-based optimization
-  - Query evaluation algorithms
+#### 14. NoSQL vs SQL 🆚
+- **[Chapter 14: NoSQL_vs_SQL](Chapter14_NoSQL_vs_SQL.md)** - Database Comparison
+  - SQL vs NoSQL paradigms
+  - When to use which database
+  - CAP theorem basics
+  - Trade-offs and considerations
 
-#### 12. Database Design 🎯
-- **[Chapter 12: DatabaseDesign](Chapter12_DatabaseDesign.md)** - Design Principles
-  - ER diagrams
-  - Entity-relationship modeling
-  - Cardinality and participation
-  - Design guidelines
+#### 15. Types of Databases 🗄️
+- **[Chapter 15: Database_Types](Chapter15_Database_Types.md)** - Database Categories
+  - Relational databases
+  - Document databases
+  - Key-value stores
+  - Column-family stores
+  - Graph databases
+  - Time-series databases
 
-#### 13. Stored Procedures 📝
-- **[Chapter 13: StoredProcedures](Chapter13_StoredProcedures.md)** - Advanced Programming
-  - Stored procedures and functions
-  - Triggers
-  - Cursors
-  - Database programming
+#### 16. Clustering & Replication 🌐
+- **[Chapter 16: Clustering_Replication](Chapter16_Clustering_Replication.md)** - High Availability
+  - Database clustering concepts
+  - Replication strategies (master-slave, master-master)
+  - Load balancing
+  - Fault tolerance and failover
 
-#### 14. Security & Authorization 🔐
-- **[Chapter 14: Security](Chapter14_Security.md)** - Database Security
-  - User authentication
-  - Access control (GRANT/REVOKE)
-  - SQL injection prevention
-  - Data encryption
+#### 17. Partitioning & Sharding ⚡
+- **[Chapter 17: Partitioning_Sharding](Chapter17_Partitioning_Sharding.md)** - Data Distribution
+  - Horizontal vs vertical partitioning
+  - Sharding strategies
+  - Data distribution algorithms
+  - Cross-shard query challenges
 
-#### 15. Distributed Databases 🌐
-- **[Chapter 15: DistributedDB](Chapter15_DistributedDB.md)** - Distributed Systems
-  - Distributed database architecture
-  - Distributed transactions
-  - Data fragmentation
-  - Replication
+#### 18. CAP Theorem 🎯
+- **[Chapter 18: CAP_Theorem](Chapter18_CAP_Theorem.md)** - Distributed Systems Theory
+  - Consistency, Availability, Partition tolerance
+  - CAP theorem proof
+  - Practical implications
+  - Database design trade-offs
 
-#### 16. NoSQL Databases 🚀
-- **[Chapter 16: NoSQL](Chapter16_NoSQL.md)** - Modern Databases
-  - Document databases (MongoDB)
-  - Key-value stores (Redis)
-  - Column-family stores (Cassandra)
-  - Graph databases (Neo4j)
-
-#### 17. Data Warehousing 📦
-- **[Chapter 17: DataWarehousing](Chapter17_DataWarehousing.md)** - Business Intelligence
-  - Data warehouse concepts
-  - OLAP vs OLTP
-  - Star and snowflake schemas
-  - ETL processes
-
-#### 18. Performance Tuning ⚡
-- **[Chapter 18: PerformanceTuning](Chapter18_PerformanceTuning.md)** - Database Optimization
-  - Query optimization techniques
-  - Index optimization
-  - Database configuration
-  - Performance monitoring
-
-#### 19. Advanced Topics 🎓
-- **[Chapter 19: AdvancedTopics](Chapter19_AdvancedTopics.md)** - Advanced Concepts
-  - Object-relational databases
-  - Temporal databases
-  - Spatial databases
-  - Web databases
-
-#### 20. Practice & Interview Prep 💼
-- **[Chapter 20: InterviewPrep](Chapter20_InterviewPrep.md)** - Interview Questions
-  - Common DBMS interview questions
-  - SQL query problems
-  - Database design scenarios
-  - Company-specific questions
+#### 19. Master-Slave Architecture 👑
+- **[Chapter 19: Master_Slave](Chapter19_Master_Slave.md)** - Replication Architecture
+  - Master-slave replication model
+  - Write and read operations
+  - Synchronization methods
+  - Advantages and limitations
 
 ---
 
 ## Learning Strategy 📖
 
 ### Recommended Learning Order:
-1. **Foundation Phase** (Chapters 1-3): Database basics, models, relational concepts
-2. **SQL Mastery** (Chapters 4-5): SQL fundamentals to advanced queries
-3. **Design & Theory** (Chapters 6, 12): Normalization and database design
-4. **Advanced Concepts** (Chapters 7-11): Transactions, concurrency, recovery, indexing, query processing
-5. **Applied Topics** (Chapters 13-19): Programming, security, distributed systems, NoSQL, performance
-6. **Interview Prep** (Chapter 20): Practice questions and scenarios
+1. **Foundation Phase** (Chapters 1-2): DBMS introduction and architecture
+2. **Data Modeling** (Chapters 3-6): ER model, extended ER, design principles, Facebook case study
+3. **Relational Model** (Chapters 7-8): Relational concepts and ER-to-relational mapping
+4. **SQL & Normalization** (Chapters 9-10): Complete SQL coverage and normalization
+5. **Transaction Management** (Chapters 11-12): ACID properties and atomicity implementation
+6. **Performance & Indexing** (Chapter 13): Database indexing techniques
+7. **Modern Databases** (Chapters 14-15): NoSQL vs SQL and database types
+8. **Distributed Systems** (Chapters 16-19): Clustering, partitioning, CAP theorem, master-slave architecture
 
 ### Practice Platforms:
 - **LeetCode** - Database problems section
@@ -164,12 +163,14 @@
 - **GeeksforGeeks** - DBMS concepts and problems
 
 ### Time Allocation:
-- **Foundation**: 1 month for basics (Chapters 1-3)
-- **SQL Mastery**: 1-2 months (Chapters 4-5)
-- **Design & Theory**: 1 month (Chapters 6, 12)
-- **Advanced Concepts**: 2-3 months (Chapters 7-11)
-- **Applied Topics**: 2-3 months (Chapters 13-19)
-- **Interview Prep**: 1 month (Chapter 20)
+- **Foundation**: 2 weeks for basics (Chapters 1-2)
+- **Data Modeling**: 3 weeks (Chapters 3-6)
+- **Relational Model**: 2 weeks (Chapters 7-8)
+- **SQL & Normalization**: 3-4 weeks (Chapters 9-10)
+- **Transaction Management**: 2-3 weeks (Chapters 11-12)
+- **Performance & Indexing**: 2 weeks (Chapter 13)
+- **Modern Databases**: 2-3 weeks (Chapters 14-15)
+- **Distributed Systems**: 3-4 weeks (Chapters 16-19)
 
 ### Success Tips:
 - **Practice SQL Daily** - Write queries for different scenarios
@@ -233,4 +234,23 @@
 
 ---
 
-*This DBMS roadmap covers 20 essential topics for comprehensive database management system knowledge and interview preparation.*
+## Video Course Structure 📹
+
+This DBMS roadmap follows a structured video course format covering:
+
+### Core Topics Covered:
+- **Foundation**: Introduction, Architecture, DBA role
+- **Data Modeling**: ER Model, Extended ER, Design Thinking, Facebook Case Study
+- **Relational**: Relational Model, ER-to-Relational Mapping
+- **SQL**: Complete SQL coverage from basics to advanced
+- **Theory**: Normalization, ACID Properties, Atomicity Implementation
+- **Performance**: Indexing in DBMS
+- **Modern**: NoSQL vs SQL, Database Types
+- **Distributed**: Clustering, Replication, Partitioning, Sharding, CAP Theorem, Master-Slave Architecture
+
+### Learning Flow:
+The course progresses from fundamental concepts to advanced distributed systems, providing comprehensive coverage of DBMS topics essential for interviews and practical applications.
+
+---
+
+*This DBMS roadmap covers 19 essential topics following a structured video course format, perfect for comprehensive database management system knowledge and interview preparation.*
