@@ -225,20 +225,33 @@ When data depends on only **part** of a composite key.
 Chain reaction: Key → A → B (where A and B are non-key)
 
 **Problem Example**:
-```
-Table: Students
-Key: Student_ID
-Data: Student_Name, Dept_ID, Dept_Name
 
-✅ Student_ID → Dept_ID (OK - key to non-key)
-❌ Dept_ID → Dept_Name (BAD - non-key to non-key!)
-```
+**Before 3NF (Bad Table)**:
+| Student_ID | Student_Name | Dept_ID | Dept_Name  |
+|------------|--------------|---------|------------|
+| 101        | John         | CS      | Computer   |
+| 102        | Jane         | CS      | Computer   |
+| 103        | Mike         | MA      | Mathematics|
 
-**Solution**: Break the chain
-```
-Students:    {Student_ID} → Student_Name, Dept_ID
-Departments: {Dept_ID} → Dept_Name
-```
+**Issues**:
+- ✅ Student_ID → Dept_ID (OK - key to non-key)
+- ❌ Dept_ID → Dept_Name (BAD - non-key to non-key!)
+- **Problem**: Dept_Name is repeated for each student in same department
+
+**After 3NF (Good Tables)**:
+
+**Table 1: Students**
+| Student_ID | Student_Name | Dept_ID |
+|------------|--------------|---------|
+| 101        | John         | CS      |
+| 102        | Jane         | CS      |
+| 103        | Mike         | MA      |
+
+**Table 2: Departments**
+| Dept_ID | Dept_Name  |
+|---------|------------|
+| CS      | Computer   |
+| MA      | Mathematics|
 
 **Key Idea**: Non-key attributes shouldn't depend on other non-key attributes.
 
@@ -252,22 +265,42 @@ Departments: {Dept_ID} → Dept_Name
 **What this means**: If A → B, then A must be a **super key** (can determine ALL columns)
 
 **Problem Example**:
-```
-Table: Class_Assignments
-Data: {Student, Course} → Professor
-      Professor → Course
 
-Key: {Student, Course}
+**Before BCNF (Bad Table)**:
+| Student  | Course  | Professor |
+|----------|---------|-----------|
+| John     | Math    | Dr. Smith |
+| John     | Physics | Dr. Jones |
+| Mary     | Math    | Dr. Smith |
 
-❌ Professor → Course violates BCNF
-   (Professor is NOT a super key - can't determine Student)
-```
+**Functional Dependencies**:
+- {Student, Course} → Professor ✅ (Composite key determines professor)
+- Professor → Course ❌ (Professor determines course, but isn't a super key!)
 
-**Solution**: Make determinants super keys
-```
-Table1: {Student, Course} → Professor
-Table2: {Professor} → Course     (Professor is now super key here!)
-```
+**Issues**:
+- ❌ Professor → Course violates BCNF
+- **Problem**: Professor is NOT a super key (can't determine Student)
+- **Update Issue**: If Dr. Smith starts teaching Physics, must update multiple rows
+
+**After BCNF (Good Tables)**:
+
+**Table 1: Student_Courses**
+| Student  | Course  | Professor |
+|----------|---------|-----------|
+| John     | Math    | Dr. Smith |
+| John     | Physics | Dr. Jones |
+| Mary     | Math    | Dr. Smith |
+
+**Table 2: Professor_Courses**
+| Professor | Course  |
+|-----------|---------|
+| Dr. Smith | Math    |
+| Dr. Jones | Physics |
+
+**Key Changes**:
+- Professor is now super key in Table 2 (determines Course)
+- Each professor teaches only one course (simplified constraint)
+- Clear separation of student enrollments vs professor assignments
 
 **Key Idea**: Anything that determines other data must be able to determine **everything** in the table.
 
