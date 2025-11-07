@@ -1,25 +1,45 @@
-# Chapter 6: API Documentation Tools
+# Chapter 06: API Documentation Tools
 
-## Swagger / OpenAPI
+## Introduction
+
+**📌 API Documentation**: The detailed description of what an API does, how it works, and how to use it. Think of it like a user manual for your API that helps developers understand and use it effectively.
+
+**📌 Why Documentation Matters**: Good documentation reduces support tickets, accelerates developer adoption, and makes your API more professional and maintainable.
+
+This chapter covers the most important tools and practices for creating excellent API documentation.
+
+---
+
+## OpenAPI/Swagger
 
 ### What is OpenAPI?
 
-**OpenAPI Specification (OAS)** = Standard for defining RESTful APIs
+**OpenAPI Specification (OAS)**: A standard for defining RESTful APIs that provides a formal, machine-readable description of how your API works.
 
-Formerly known as Swagger, OpenAPI provides a formal, machine-readable description of REST APIs.
+**📌 Think of it like**: A blueprint for your API that both humans and machines can understand. It's like having a detailed menu that not only describes dishes but also tells you exactly how to order them.
+
+### OpenAPI vs Swagger
+
+| Term | Description | Current Status |
+|------|-------------|----------------|
+| **Swagger** | Original tool for API documentation | Now part of OpenAPI ecosystem |
+| **OpenAPI** | Industry standard specification | Version 3.x is current |
+| **Swagger UI** | Interactive documentation generator | Uses OpenAPI spec |
+| **Swagger Editor** | API spec editor | Now called SwaggerHub |
 
 ### OpenAPI Specification Structure
 
 ```yaml
-# OpenAPI 3.0.3 example
+# Complete OpenAPI 3.0 example
 openapi: 3.0.3
 info:
   title: User Management API
-  description: API for managing users and their data
+  description: A comprehensive API for managing users, authentication, and profiles
   version: 1.0.0
   contact:
-    name: API Support
-    email: support@example.com
+    name: API Team
+    email: api@example.com
+    url: https://example.com/support
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -29,59 +49,149 @@ servers:
     description: Production server
   - url: https://staging-api.example.com/v1
     description: Staging server
+  - url: http://localhost:3000/v1
+    description: Development server
 
+# Security schemes
 security:
   - BearerAuth: []
+  - ApiKeyAuth: []
 
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    User:
+      type: object
+      required:
+        - email
+        - name
+      properties:
+        id:
+          type: integer
+          example: 123
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        avatar:
+          type: string
+          format: uri
+          example: "https://example.com/avatars/123.jpg"
+        created_at:
+          type: string
+          format: date-time
+          example: "2023-12-01T10:30:00Z"
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: "USER_NOT_FOUND"
+        message:
+          type: string
+          example: "User with ID 123 not found"
+        details:
+          type: object
+
+# API endpoints
 paths:
   /users:
     get:
       summary: Get all users
-      description: Retrieve a paginated list of users
+      description: Retrieve a paginated list of users with optional filtering
+      tags:
+        - Users
       parameters:
         - name: page
           in: query
-          description: Page number
-          required: false
           schema:
             type: integer
-            minimum: 1
             default: 1
+            minimum: 1
+          description: Page number for pagination
         - name: limit
           in: query
-          description: Number of users per page
-          required: false
           schema:
             type: integer
+            default: 20
             minimum: 1
             maximum: 100
-            default: 20
+          description: Number of users per page
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search users by name or email
       responses:
         '200':
-          description: Successful response
+          description: Users retrieved successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data:
+                  users:
                     type: array
                     items:
                       $ref: '#/components/schemas/User'
                   pagination:
-                    $ref: '#/components/schemas/Pagination'
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
     post:
-      summary: Create new user
-      description: Create a new user account
+      summary: Create a new user
+      description: Create a new user account with the provided information
+      tags:
+        - Users
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateUserRequest'
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  example: "Jane Smith"
+                email:
+                  type: string
+                  format: email
+                  example: "jane@example.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "password123"
       responses:
         '201':
           description: User created successfully
@@ -92,869 +202,174 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /users/{userId}:
+  /users/{id}:
     get:
       summary: Get user by ID
-      description: Retrieve user details by user ID
+      description: Retrieve detailed information about a specific user
+      tags:
+        - Users
       parameters:
-        - name: userId
+        - name: id
           in: path
           required: true
-          description: User ID
           schema:
             type: integer
-            format: int64
+          description: Unique identifier of the user
       responses:
         '200':
-          description: User details
+          description: User retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
-    put:
-      summary: Update user
-      description: Update user information
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateUserRequest'
-      responses:
-        '200':
-          description: User updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-
-    delete:
-      summary: Delete user
-      description: Delete user account
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '204':
-          description: User deleted successfully
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+# Common responses
 components:
-  schemas:
-    User:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-          example: 123
-        username:
-          type: string
-          example: johndoe
-        email:
-          type: string
-          format: email
-          example: john@example.com
-        firstName:
-          type: string
-          example: John
-        lastName:
-          type: string
-          example: Doe
-        role:
-          type: string
-          enum: [user, admin, moderator]
-          example: user
-        isActive:
-          type: boolean
-          example: true
-        createdAt:
-          type: string
-          format: date-time
-          example: 2024-01-15T10:30:00Z
-        updatedAt:
-          type: string
-          format: date-time
-          example: 2024-01-20T14:22:00Z
-      required:
-        - id
-        - username
-        - email
-        - role
-        - isActive
-
-    CreateUserRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          minLength: 3
-          maxLength: 50
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          minLength: 8
-        firstName:
-          type: string
-          maxLength: 50
-        lastName:
-          type: string
-          maxLength: 50
-      required:
-        - username
-        - email
-        - password
-
-    UpdateUserRequest:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        firstName:
-          type: string
-          maxLength: 50
-        lastName:
-          type: string
-          maxLength: 50
-        role:
-          type: string
-          enum: [user, admin, moderator]
-        isActive:
-          type: boolean
-
-    Pagination:
-      type: object
-      properties:
-        page:
-          type: integer
-          minimum: 1
-          example: 1
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 100
-          example: 20
-        total:
-          type: integer
-          minimum: 0
-          example: 100
-        totalPages:
-          type: integer
-          minimum: 0
-          example: 5
-
   responses:
-    BadRequest:
-      description: Bad request
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              error:
-                type: string
-                example: "Validation error"
-              details:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    field:
-                      type: string
-                    message:
-                      type: string
-
     Unauthorized:
-      description: Unauthorized
+      description: Authentication required
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error:
-                type: string
-                example: "Authentication required"
-
+            $ref: '#/components/schemas/Error'
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error:
-                type: string
-                example: "User not found"
-
-    Conflict:
-      description: Conflict
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Invalid request parameters
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              error:
-                type: string
-                example: "User already exists"
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
 
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-```
-
-### OpenAPI Tools
-
-#### **Swagger UI**
-
-```javascript
-// Express.js with Swagger UI
-const express = require('express');
-const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('./openapi.json');
-
-const app = express();
-
-// Serve Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
-  explorer: true,
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: "User Management API Documentation"
-}));
-
-// Custom Swagger UI options
-const options = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'User Management API',
-      version: '1.0.0',
-    },
-  },
-  apis: ['./routes/*.js'], // Path to API docs
-};
-
-// Generate OpenAPI from JSDoc comments
-/**
- * @swagger
- * /users:
- *   get:
- *     summary: Get all users
- *     tags: [Users]
- *     responses:
- *       200:
- *         description: List of users
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/User'
- */
-app.get('/users', getUsers);
-```
-
-#### **Swagger Codegen**
-
-```bash
-# Generate server stubs
-swagger-codegen generate \
-  -i openapi.json \
-  -l nodejs-server \
-  -o ./generated-server
-
-# Generate client SDKs
-swagger-codegen generate \
-  -i openapi.json \
-  -l javascript \
-  -o ./generated-client
-
-# Generate API documentation
-swagger-codegen generate \
-  -i openapi.json \
-  -l html2 \
-  -o ./docs
-```
-
-#### **OpenAPI Generator**
-
-```bash
-# Generate TypeScript client
-openapi-generator-cli generate \
-  -i openapi.json \
-  -g typescript-axios \
-  -o ./client-ts
-
-# Generate Spring Boot server
-openapi-generator-cli generate \
-  -i openapi.json \
-  -g spring \
-  -o ./server-spring
+tags:
+  - name: Users
+    description: User management operations
 ```
 
 ### OpenAPI Best Practices
 
-| Practice | Description | Example |
-|----------|-------------|---------|
-| **Version Control** | Use API versioning in paths | `/v1/users` |
-| **Consistent Naming** | Use consistent naming conventions | `userId`, `createdAt` |
-| **Proper HTTP Status** | Use appropriate status codes | `200`, `201`, `400`, `404` |
-| **Data Validation** | Define validation rules | `minLength: 3`, `pattern: "^[a-zA-Z0-9]+$"` |
-| **Error Responses** | Document error responses | `401 Unauthorized`, `404 Not Found` |
-| **Authentication** | Specify authentication schemes | `BearerAuth`, `ApiKeyAuth` |
-| **Examples** | Provide example values | `example: "johndoe"` |
-| **Schema Reuse** | Use `$ref` for common schemas | `$ref: '#/components/schemas/User'` |
+| Practice | Why It Matters | Implementation |
+|----------|---------------|----------------|
+| **Semantic Versioning** | Clear API evolution | Use `x.x.x` format |
+| **Detailed Descriptions** | Better understanding | Markdown support in descriptions |
+| **Examples** | Clarity for developers | Include request/response examples |
+| **Error Responses** | Better error handling | Define all error scenarios |
+| **Security Schemes** | Authentication clarity | Define all auth methods |
 
 ---
 
-## Readme.com
+## Swagger UI
 
-### What is Readme.com?
+### What is Swagger UI?
 
-Modern API documentation platform that combines documentation, API reference, and developer hub features.
+**Swagger UI**: Interactive API documentation that lets developers explore and test your API directly from their browser.
 
-### Readme.com Features
+**📌 Think of it like**: A web-based user manual for your API that lets you try things out as you read about them.
 
-| Feature | Description |
-|---------|-------------|
-| **Interactive API Explorer** | Test APIs directly in browser |
-| **API Reference** | Auto-generated from OpenAPI/Swagger |
-| **Custom Pages** | Markdown-based documentation |
-| **Changelogs** | Version history and updates |
-| **Developer Community** | Q&A and discussions |
-| **SDK Generation** | Multiple programming languages |
-| **Customization** | Branding and styling options |
+### Swagger UI Features
 
-### Readme.com Setup
+| Feature | Description | Developer Value |
+|---------|-------------|-----------------|
+| **Interactive Testing** | Try API calls from browser | Quick prototyping |
+| **Parameter Validation** | Input validation before requests | Reduce errors |
+| **Authentication Support** | Handle OAuth, API keys, etc. | Secure testing |
+| **Schema Display** | Visual data structure | Better understanding |
+| **Code Generation** | Generate client code | Faster development |
 
-#### **API Reference Import**
+### Setting Up Swagger UI
 
-```bash
-# Using CLI
-readme login
-readme sync openapi.json
-
-# Using npm package
-npm install -g readmeio
-readme login
-readme sync ./openapi.json --key=your-api-key
-```
-
-#### **Custom Documentation Pages**
-
-```markdown
-# Getting Started
-
-Welcome to our User Management API! This guide will help you get up and running quickly.
-
-## Authentication
-
-Our API uses Bearer token authentication. Include your token in the Authorization header:
-
-```bash
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-     https://api.example.com/v1/users
-```
-
-## Quick Start
-
-1. **Get your API key** from the developer dashboard
-2. **Make your first API call** to test authentication
-3. **Explore the API reference** for available endpoints
-
-## Rate Limits
-
-Our API implements rate limiting to ensure fair usage:
-
-| Plan | Requests per hour |
-|------|-------------------|
-| Free | 1,000 |
-| Pro | 10,000 |
-| Enterprise | Unlimited |
-
-## SDKs
-
-We provide official SDKs for popular languages:
-
-- [JavaScript/TypeScript](./sdks/javascript)
-- [Python](./sdks/python)
-- [Java](./sdks/java)
-- [Ruby](./sdks/ruby)
-```
-
-#### **Interactive Examples**
-
-```markdown
-# Create a User
-
-Use this endpoint to create a new user account.
-
-```json http
-POST /v1/users
-Content-Type: application/json
-Authorization: Bearer YOUR_TOKEN
-
-{
-  "username": "newuser",
-  "email": "user@example.com",
-  "password": "securePassword123",
-  "firstName": "John",
-  "lastName": "Doe"
-}
-```
-
-```json
-{
-  "id": 123,
-  "username": "newuser",
-  "email": "user@example.com",
-  "firstName": "John",
-  "lastName": "Doe",
-  "role": "user",
-  "isActive": true,
-  "createdAt": "2024-01-15T10:30:00Z",
-  "updatedAt": "2024-01-15T10:30:00Z"
-}
-```
-
-## Error Handling
-
-Our API returns standard HTTP status codes and detailed error messages:
-
-| Status Code | Description | Example Response |
-|-------------|-------------|------------------|
-| 400 | Bad Request | Invalid request parameters |
-| 401 | Unauthorized | Missing or invalid API key |
-| 404 | Not Found | Resource doesn't exist |
-| 429 | Too Many Requests | Rate limit exceeded |
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid email format",
-    "details": {
-      "field": "email",
-      "value": "invalid-email"
-    }
-  }
-}
-```
-```
-
-### Readme.com Integration
-
-#### **GitHub Integration**
-
-```yaml
-# .github/workflows/docs.yml
-name: Update Documentation
-
-on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'docs/**'
-      - 'openapi.json'
-
-jobs:
-  update-docs:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Sync to Readme
-      run: |
-        npm install -g readmeio
-        readme sync ./openapi.json --key=${{ secrets.README_API_KEY }}
-
-    - name: Update custom pages
-      run: |
-        readme upload ./docs/getting-started.md --key=${{ secrets.README_API_KEY }}
-```
-
-#### **Custom Domain**
+#### With Node.js/Express
 
 ```javascript
-// Configure custom domain
-const readmeConfig = {
-  subdomain: 'api-docs.yourcompany.com',
-  customCSS: `
-    .hero {
-      background-color: #your-brand-color;
-    }
-  `,
-  logo: 'https://yourcompany.com/logo.png',
-  favicon: 'https://yourcompany.com/favicon.ico'
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger.json');
+
+// Add Swagger UI route
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  explorer: true,                    // Enable search bar
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "My API Documentation"
+}));
+
+// Add OpenAPI spec route
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerDocument);
+});
+```
+
+#### With Docker
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    ports:
+      - "8080:8080"
+    environment:
+      - SWAGGER_JSON=/api-specs/openapi.json
+      - BASE_URL=/api-docs
+    volumes:
+      - ./swagger.json:/api-specs/openapi.json
+```
+
+### Customizing Swagger UI
+
+```javascript
+const swaggerOptions = {
+  explorer: true,
+  deepLinking: true,
+  displayRequestDuration: true,
+  docExpansion: "none",
+  filter: true,
+  showExtensions: true,
+  showCommonExtensions: true,
+  tryItOutEnabled: true,
+  operationsSorter: "alpha",
+  tagsSorter: "alpha"
 };
 ```
 
 ---
 
-## Stoplight
+## Postman Collections
 
-### What is Stoplight?
+### What are Postman Collections?
 
-API design and documentation platform that provides visual API design, mock servers, and automated testing.
+**Postman Collections**: Organized groups of API requests that can be saved, shared, and documented.
 
-### Stoplight Features
+**📌 Think of it like**: A recipe book for your API - each recipe is a specific request with all the ingredients and instructions ready to use.
 
-| Feature | Description |
-|---------|-------------|
-| **Visual API Designer** | Drag-and-drop API modeling |
-| **Mock Server** | Auto-generated mock responses |
-| **Contract Testing** | Automated API testing |
-| **Design-First** | API design before implementation |
-| **Collaboration** | Team workflows and reviews |
-| **Documentation** | Auto-generated API docs |
-| **SDK Generation** | Multiple language support |
-
-### Stoplight Studio
-
-#### **API Design Example**
-
-```yaml
-# stoplight.yml
-name: User Management API
-description: API for managing users and authentication
-version: 1.0.0
-
-models:
-  User:
-    type: object
-    properties:
-      id:
-        type: integer
-        description: Unique user identifier
-      username:
-        type: string
-        description: User's username
-      email:
-        type: string
-        format: email
-        description: User's email address
-      profile:
-        type: object
-        properties:
-          firstName:
-            type: string
-          lastName:
-            type: string
-          avatar:
-            type: string
-            format: uri
-    required:
-      - id
-      - username
-      - email
-
-  CreateUserRequest:
-    type: object
-    properties:
-      username:
-        type: string
-        minLength: 3
-        maxLength: 50
-      email:
-        type: string
-        format: email
-      password:
-        type: string
-        minLength: 8
-      profile:
-        $ref: '#/models/UserProfile'
-    required:
-      - username
-      - email
-      - password
-
-  UserProfile:
-    type: object
-    properties:
-      firstName:
-        type: string
-        maxLength: 50
-      lastName:
-        type: string
-        maxLength: 50
-      avatar:
-        type: string
-        format: uri
-
-resources:
-  users:
-    description: User management operations
-    get:
-      displayName: Get Users
-      description: Retrieve a list of users
-      queryParameters:
-        page:
-          type: integer
-          minimum: 1
-          default: 1
-          description: Page number for pagination
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 100
-          default: 20
-          description: Number of users per page
-      responses:
-        '200':
-          description: Successful response
-          body:
-            application/json:
-              type: object
-              properties:
-                data:
-                  type: array
-                  items:
-                    $ref: '#/models/User'
-                pagination:
-                  $ref: '#/models/Pagination'
-
-    post:
-      displayName: Create User
-      description: Create a new user
-      body:
-        application/json:
-          schema:
-            $ref: '#/models/CreateUserRequest'
-      responses:
-        '201':
-          description: User created successfully
-          body:
-            application/json:
-              schema:
-                $ref: '#/models/User'
-        '400':
-          description: Invalid request data
-          body:
-            application/json:
-              schema:
-                $ref: '#/models/ErrorResponse'
-        '409':
-          description: User already exists
-          body:
-            application/json:
-              schema:
-                $ref: '#/models/ErrorResponse'
-
-  /users/{userId}:
-    get:
-      displayName: Get User
-      description: Get user by ID
-      pathParameters:
-        userId:
-          type: integer
-          description: User ID
-      responses:
-        '200':
-          description: User details
-          body:
-            application/json:
-              schema:
-                $ref: '#/models/User'
-        '404':
-          description: User not found
-          body:
-            application/json:
-              schema:
-                $ref: '#/models/ErrorResponse'
-
-  authentication:
-    description: Authentication endpoints
-    post:
-      displayName: Login
-      description: Authenticate user and get token
-      body:
-        application/json:
-          type: object
-          properties:
-            email:
-              type: string
-              format: email
-            password:
-              type: string
-          required:
-            - email
-            - password
-      responses:
-        '200':
-          description: Login successful
-          body:
-            application/json:
-              type: object
-              properties:
-                token:
-                  type: string
-                user:
-                  $ref: '#/models/User'
-                expiresAt:
-                  type: string
-                  format: date-time
-        '401':
-          description: Invalid credentials
-          body:
-            application/json:
-              schema:
-                $ref: '#/models/ErrorResponse'
-```
-
-#### **Mock Server Configuration**
-
-```javascript
-// stoplight.mocks.js
-module.exports = {
-  scenarios: [
-    {
-      name: 'Success',
-      request: {
-        method: 'GET',
-        path: '/users'
-      },
-      response: {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: {
-          data: [
-            {
-              id: 1,
-              username: 'johndoe',
-              email: 'john@example.com',
-              profile: {
-                firstName: 'John',
-                lastName: 'Doe',
-                avatar: 'https://example.com/avatars/1.jpg'
-              }
-            }
-          ],
-          pagination: {
-            page: 1,
-            limit: 20,
-            total: 100,
-            totalPages: 5
-          }
-        }
-      }
-    },
-    {
-      name: 'User Not Found',
-      request: {
-        method: 'GET',
-        path: '/users/999'
-      },
-      response: {
-        status: 404,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: {
-          error: {
-            code: 'USER_NOT_FOUND',
-            message: 'User with ID 999 not found'
-          }
-        }
-      }
-    }
-  ]
-};
-```
-
-### Stoplight CLI
-
-```bash
-# Install Stoplight CLI
-npm install -g @stoplight/cli
-
-# Validate API specification
-stoplight validate api.yaml
-
-# Generate mock server
-stoplight mock api.yaml --port 3000
-
-# Generate documentation
-stoplight generate docs api.yaml --output ./docs
-
-# Run contract tests
-stoplight test api.yaml
-```
-
----
-
-## Postman
-
-### What is Postman?
-
-API development environment that enables API testing, documentation, and collaboration.
-
-### Postman Features
-
-| Feature | Description |
-|---------|-------------|
-| **API Testing** | Automated testing and assertions |
-| **Documentation** | Auto-generated from collections |
-| **Mock Servers** | Create mock APIs |
-| **Monitors** | Scheduled API tests |
-| **Environments** | Manage multiple configurations |
-| **Collections** | Organize API requests |
-| **Workspaces** | Team collaboration |
-
-### Postman Collections
-
-#### **Collection Structure**
+### Postman Collection Structure
 
 ```json
 {
   "info": {
     "name": "User Management API",
-    "description": "API for managing users and authentication",
+    "description": "Complete collection for User Management API testing",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "https://api.example.com/v1",
-      "type": "string"
-    },
-    {
-      "key": "apiToken",
-      "value": "",
-      "type": "string"
-    }
-  ],
-  "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{apiToken}}",
-        "type": "string"
-      }
-    ]
   },
   "item": [
     {
@@ -972,94 +387,19 @@ API development environment that enables API testing, documentation, and collabo
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "login"]
-            }
+            },
+            "description": "Authenticate user and get access token"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test(\"Response has token\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.token).to.be.a('string');",
-                  "    pm.collectionVariables.set('apiToken', jsonData.token);",
-                  "});",
-                  "",
-                  "pm.test(\"Response has user data\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.user).to.be.an('object');",
-                  "    pm.expect(jsonData.user.id).to.be.a('number');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Users",
-      "item": [
-        {
-          "name": "Get Users",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/users?page={{page}}&limit={{limit}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["users"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "{{page}}",
-                  "description": "Page number"
-                },
-                {
-                  "key": "limit",
-                  "value": "{{limit}}",
-                  "description": "Items per page"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test(\"Response has users array\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data).to.be.an('array');",
-                  "    pm.expect(jsonData.pagination).to.be.an('object');",
-                  "});",
-                  "",
-                  "pm.test(\"Pagination fields exist\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.pagination).to.have.property('page');",
-                  "    pm.expect(jsonData.pagination).to.have.property('limit');",
-                  "    pm.expect(jsonData.pagination).to.have.property('total');",
-                  "});"
-                ]
-              }
-            }
-          ]
+          "response": []
         },
         {
-          "name": "Create User",
+          "name": "Refresh Token",
           "request": {
             "method": "POST",
             "header": [
@@ -1070,592 +410,758 @@ API development environment that enables API testing, documentation, and collabo
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"email\": \"{{newEmail}}\",\n  \"password\": \"{{newPassword}}\",\n  \"firstName\": \"{{firstName}}\",\n  \"lastName\": \"{{lastName}}\"\n}"
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get paginated list of users with optional filtering"
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/users",
               "host": ["{{baseUrl}}"],
               "path": ["users"]
             }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 201\", function () {",
-                  "    pm.response.to.have.status(201);",
-                  "});",
-                  "",
-                  "pm.test(\"Response has created user\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('id');",
-                  "    pm.expect(jsonData).to.have.property('username');",
-                  "    pm.expect(jsonData).to.have.property('email');",
-                  "});",
-                  "",
-                  "pm.test(\"User data matches request\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.username).to.eql(pm.collectionVariables.get('newUsername'));",
-                  "    pm.expect(jsonData.email).to.eql(pm.collectionVariables.get('newEmail'));",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get User by ID",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/users/{{userId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["users", "{{userId}}"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test(\"Response has correct user\", function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get('userId'));",
-                  "    pm.expect(jsonData).to.have.property('username');",
-                  "    pm.expect(jsonData).to.have.property('email');",
-                  "});"
-                ]
-              }
-            }
-          ]
+          }
         }
       ]
     }
-  ]
-}
-```
-
-#### **Postman Environments**
-
-```json
-{
-  "name": "Development",
-  "values": [
+  ],
+  "variable": [
     {
       "key": "baseUrl",
-      "value": "https://dev-api.example.com/v1",
-      "type": "default",
-      "enabled": true
+      "value": "https://api.example.com/v1"
     },
     {
-      "key": "apiToken",
-      "value": "",
-      "type": "secret",
-      "enabled": true
+      "key": "accessToken",
+      "value": ""
     },
     {
-      "key": "email",
-      "value": "test@example.com",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "password",
-      "value": "testPassword123",
-      "type": "secret",
-      "enabled": true
-    },
-    {
-      "key": "newUsername",
-      "value": "newUser123",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "newEmail",
-      "value": "newuser@example.com",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "newPassword",
-      "value": "newPassword123",
-      "type": "secret",
-      "enabled": true
-    },
-    {
-      "key": "userId",
-      "value": "123",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "page",
-      "value": "1",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "limit",
-      "value": "20",
-      "type": "default",
-      "enabled": true
+      "key": "refreshToken",
+      "value": ""
     }
   ]
 }
 ```
 
-### Postman Newman (CLI)
+### Postman Collection Best Practices
+
+| Practice | Description | Benefits |
+|----------|-------------|----------|
+| **Environment Variables** | Different configs for dev/staging/prod | Easy environment switching |
+| **Test Scripts** | Automated response validation | Better quality assurance |
+| **Documentation** | Add request descriptions | Self-documenting collections |
+| **Folders/Structure** | Logical organization | Better navigation |
+| **Examples** | Sample requests and responses | Clear usage patterns |
+
+### Postman Test Scripts
 
 ```javascript
-// newman-tests.js
-const newman = require('newman');
+// Example test script for API response
+pm.test("Status code is 200", function () {
+    pm.response.to.have.status(200);
+});
 
-newman.run({
-  collection: require('./collection.json'),
-  environment: require('./environment.json'),
-  reporters: ['cli', 'html', 'junit'],
-  reporter: {
-    html: {
-      export: './test-results.html'
-    },
-    junit: {
-      export: './test-results.xml'
+pm.test("Response has valid structure", function () {
+    const responseJson = pm.response.json();
+
+    // Check if response has required fields
+    pm.expect(responseJson).to.have.property('data');
+    pm.expect(responseJson.data).to.be.an('array');
+
+    // Check if user objects have required fields
+    if (responseJson.data.length > 0) {
+        const user = responseJson.data[0];
+        pm.expect(user).to.have.property('id');
+        pm.expect(user).to.have.property('name');
+        pm.expect(user).to.have.property('email');
     }
-  },
-  iterationCount: 1,
-  bail: false
-}, function (err) {
-  if (err) {
-    throw err;
-  }
-  console.log('Collection run complete!');
+});
+
+// Extract and set variables
+pm.test("Set user ID for next request", function () {
+    const responseJson = pm.response.json();
+    if (responseJson.data && responseJson.data.length > 0) {
+        pm.globals.set('userId', responseJson.data[0].id);
+    }
 });
 ```
 
-```bash
-# Run collection tests
-newman run collection.json -e environment.json
+---
 
-# Run with reporters
-newman run collection.json -e environment.json -r html,cli
+## ReadMe.com
 
-# Run in CI/CD
-newman run collection.json -e environment.json --reporters cli,junit --reporter-junit-export results.xml
-```
+### What is ReadMe.com?
 
-### Postman Documentation
+**ReadMe.com**: A platform for creating beautiful, interactive API documentation with built-in developer tools.
 
-#### **Auto-Generated Documentation**
+**📌 Think of it like**: A modern website builder specifically designed for API documentation that includes everything from reference guides to interactive playgrounds.
 
-Postman automatically generates documentation from collections:
+### ReadMe.com Features
 
-- **Request Details**: URL, method, headers, body
-- **Response Examples**: Sample responses
-- **Authentication**: Auth methods and configuration
-- **Environment Variables**: Configuration options
-- **Test Scripts**: Validation logic
+| Feature | Description | When to Use |
+|---------|-------------|------------|
+| **Interactive API Explorer** | Try API calls in browser | Public APIs |
+| **Custom Domain** | Branded documentation URLs | Professional APIs |
+| **Version Control** | Multiple API versions | Evolving APIs |
+| **Analytics** | Track API usage | Business APIs |
+| **Integration Options** | Multiple auth methods | Complex APIs |
 
-#### **Custom Documentation**
+### ReadMe.com Documentation Structure
 
 ```markdown
 # User Management API Documentation
 
 ## Overview
 
-This API allows you to manage user accounts, including creating, reading, updating, and deleting users.
+Welcome to the User Management API! This API allows you to manage users, authentication, and profiles for your applications.
 
 ## Authentication
 
-All endpoints (except login) require Bearer token authentication:
+We use JWT tokens for authentication. Include the token in the Authorization header:
 
-```http
-Authorization: Bearer YOUR_TOKEN_HERE
+```bash
+Authorization: Bearer your_jwt_token_here
 ```
 
-## Base URL
+## Getting Started
 
-```
-https://api.example.com/v1
-```
+### 1. Get Your API Key
 
-## Endpoints
+First, you'll need to get an API key from your dashboard.
 
-### Authentication
+### 2. Make Your First Request
 
-#### POST /auth/login
-
-Authenticates a user and returns a JWT token.
-
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
+```bash
+curl -X GET "https://api.example.com/v1/users" \
+     -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-**Response:**
-```json
-{
-  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "user": {
-    "id": 123,
-    "username": "johndoe",
-    "email": "user@example.com",
-    "role": "user"
-  },
-  "expiresAt": "2024-01-22T10:30:00Z"
-}
+## Core Endpoints
+
+### Get All Users
+
+Retrieve a paginated list of all users.
+
+{{code:lang="bash" src="https://api.example.com/v1/users"}}
 ```
 
-### Users
+### Authentication Flow Diagram
 
-#### GET /users
+```mermaid
+sequenceDiagram
+    participant Client as Developer App
+    participant API as Our API
+    participant Auth as Auth Service
 
-Retrieves a paginated list of users.
-
-**Query Parameters:**
-- `page` (optional): Page number (default: 1)
-- `limit` (optional): Items per page (default: 20, max: 100)
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": 123,
-      "username": "johndoe",
-      "email": "john@example.com",
-      "role": "user",
-      "isActive": true,
-      "createdAt": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 100,
-    "totalPages": 5
-  }
-}
+    Client->>Auth: 1. Login with credentials
+    Auth->>Client: 2. Return JWT token
+    Client->>API: 3. Request with JWT
+    API->>Client: 4. Return user data
 ```
 
-#### POST /users
+## Error Handling
 
-Creates a new user account.
+| Error Code | Description | How to Fix |
+|-----------|-------------|------------|
+| 401 | Unauthorized | Check your API key |
+| 403 | Forbidden | Verify permissions |
+| 429 | Rate Limited | Wait and retry |
+| 500 | Server Error | Contact support |
 
-**Request Body:**
-```json
-{
-  "username": "newuser",
-  "email": "newuser@example.com",
-  "password": "securePassword123",
-  "firstName": "John",
-  "lastName": "Doe"
-}
+## SDKs and Libraries
+
+We provide official SDKs for several languages:
+
+{{tabs}}
+{{tab name="JavaScript" }}
+
+```bash
+npm install @example/users-api
 ```
 
-**Response:**
-```json
-{
-  "id": 124,
-  "username": "newuser",
-  "email": "newuser@example.com",
-  "firstName": "John",
-  "lastName": "Doe",
-  "role": "user",
-  "isActive": true,
-  "createdAt": "2024-01-20T14:22:00Z"
-}
+{{/tab}}
+{{tab name="Python" }}
+
+```bash
+pip install example-users-api
 ```
 
-## Error Responses
+{{/tab}}
+{{tab name="Ruby" }}
 
-All endpoints may return the following error responses:
-
-### 400 Bad Request
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid request data",
-    "details": [
-      {
-        "field": "email",
-        "message": "Invalid email format"
-      }
-    ]
-  }
-}
+```bash
+gem install example_users_api
 ```
 
-### 401 Unauthorized
-```json
-{
-  "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Authentication required"
-  }
-}
+{{/tab}}
+{{/tabs}}
+
+## Community
+
+- **Discord**: Join our developer community
+- **GitHub**: Report issues and contribute
+- **Blog**: Latest features and updates
 ```
 
-### 404 Not Found
-```json
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Resource not found"
-  }
-}
+### ReadMe.com Custom Blocks
+
+#### Interactive API Explorer
+```html
+<InteractiveAPI
+  endpoint="GET /users"
+  description="Try our API right here!"
+  authentication="Bearer"
+/>
 ```
 
-## Rate Limiting
-
-- **Free tier**: 1,000 requests per hour
-- **Pro tier**: 10,000 requests per hour
-- **Enterprise**: Unlimited requests
-
-Rate limit headers are included in all responses:
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 999
-X-RateLimit-Reset: 1642245600
-```
+#### Code Examples with Language Tabs
+```html
+<CodeGroup>
+<Code name="JavaScript">
+```js
+fetch('/api/users', {
+  headers: { 'Authorization': 'Bearer token' }
+})
+</Code>
+<Code name="Python">
+```python
+requests.get('/api/users',
+  headers={'Authorization': 'Bearer token'})
+</Code>
+</CodeGroup>
 ```
 
 ---
 
-## Tool Comparison
+## Stoplight Studio
 
-### Feature Comparison Matrix
+### What is Stoplight?
 
-| Feature | Swagger/OpenAPI | Readme.com | Stoplight | Postman |
-|---------|-----------------|------------|-----------|---------|
-| **Interactive Testing** | ✅ Swagger UI | ✅ Built-in | ✅ Mock Server | ✅ Built-in |
-| **Auto-Documentation** | ✅ From spec | ✅ From spec | ✅ From design | ✅ From collection |
-| **Code Generation** | ✅ Multiple languages | ✅ SDKs | ✅ Multiple languages | ❌ Limited |
-| **Collaboration** | ⚠️ Git-based | ✅ Platform | ✅ Team workflows | ✅ Workspaces |
-| **Visual Design** | ❌ Text-based | ⚠️ Limited | ✅ Visual designer | ⚠️ Limited |
-| **Mock Server** | ✅ Third-party | ✅ Built-in | ✅ Built-in | ✅ Built-in |
-| **Testing** | ❌ External tools | ❌ External | ✅ Contract testing | ✅ Built-in testing |
-| **Version Control** | ✅ Git | ✅ Platform | ✅ Platform | ✅ Platform |
-| **Pricing** | ✅ Free/Open Source | 💰 Paid | 💰 Paid | ✅ Free tier |
-| **Learning Curve** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ |
+**Stoplight Studio**: A visual API design and documentation platform that combines API design, documentation, and testing.
 
-### Use Case Recommendations
+**📌 Think of it like**: A visual API builder where you can design, document, and test your API all in one place.
 
-| Scenario | Recommended Tool | Why |
-|----------|------------------|-----|
-| **Open Source Project** | Swagger/OpenAPI | Free, standard, wide adoption |
-| **Enterprise API** | Readme.com | Professional appearance, support |
-| **Design-First Development** | Stoplight | Visual design, mock server |
-| **API Testing & Development** | Postman | Powerful testing, collaboration |
-| **Developer Portal** | Readme.com | Complete developer experience |
-| **Quick Documentation** | Postman | Easy setup, collection-based |
-| **Contract Testing** | Stoplight | Built-in contract testing |
+### Stoplight Features
 
-### Tool Integration
+| Feature | Description | Use Case |
+|---------|-------------|---------|
+| **Visual API Designer** | Drag-and-drop API design | Rapid prototyping |
+| **HTTP Client** | Built-in API testing | Documentation testing |
+| **Mock Servers** | Auto-generated mock APIs | Frontend development |
+| **API Registry** | Central API catalog | Enterprise teams |
+| **Design-First Approach** | Documentation before code | Contract-first development |
 
-#### **Combined Workflow**
+### Stoplight API Design
 
-```mermaid
-flowchart TD
-    A[API Design in Stoplight] --> B[Export OpenAPI Spec]
-    B --> C[Import to Readme.com]
-    C --> D[Create Postman Collection]
-    D --> E[Automated Testing with Newman]
-    E --> F[Monitor API Health]
-    F --> G[Update Documentation]
+#### Visual API Designer
+
+```markdown
+# User API Design
+
+## Endpoints
+
+### GET /users
+Retrieve all users with optional filtering.
+
+**Parameters:**
+- `page` (integer): Page number
+- `limit` (integer): Results per page
+- `search` (string): Search term
+
+**Response:**
+```json
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "total": 100
+  }
+}
 ```
 
-```javascript
-// Integration example: Stoplight to Postman
-const stoplightToPostman = {
-  // Convert Stoplight design to Postman collection
-  convert: async (stoplightSpec) => {
-    const openapi = await stoplightToOpenAPI(stoplightSpec);
-    const postman = await openAPIToPostman(openapi);
-    return postman;
-  },
+### POST /users
+Create a new user.
 
-  // Sync with Readme.com
-  syncWithReadme: async (openapiSpec) => {
-    await readmeAPI.sync(openapiSpec);
-    console.log('Documentation updated on Readme.com');
+**Request Body:**
+```json
+{
+  "name": "Jane Smith",
+  "email": "jane@example.com",
+  "password": "password123"
+}
+```
+```
+
+#### Stoplight API Modeling
+
+```javascript
+// Stoplight Schema Example
+const UserSchema = {
+  type: 'object',
+  required: ['name', 'email'],
+  properties: {
+    id: {
+      type: 'integer',
+      readOnly: true,
+      example: 123
+    },
+    name: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 100,
+      example: 'John Doe'
+    },
+    email: {
+      type: 'string',
+      format: 'email',
+      example: 'john@example.com'
+    }
   }
 };
 ```
 
-### Implementation Strategy
+### Stoplight Workflow
 
-#### **Phase 1: Foundation**
-1. **Choose primary tool** based on team needs
-2. **Create basic API specification**
-3. **Set up initial documentation**
+```mermaid
+graph TD
+    A[API Design] --> B[Documentation]
+    B --> C[Mock Server]
+    C --> D[Testing]
+    D --> E[Code Generation]
+    E --> F[Publish]
 
-#### **Phase 2: Enhancement**
-1. **Add interactive examples**
-2. **Implement automated testing**
-3. **Create mock servers**
+    A --> G[Visual Designer]
+    B --> H[Interactive Docs]
+    C --> I[Auto-generated]
+    D --> J[Built-in Client]
+    E --> K[Multiple Languages]
+    F --> L[API Registry]
+```
 
-#### **Phase 3: Integration**
-1. **Connect multiple tools**
-2. **Automate workflows**
-3. **Monitor and maintain**
+---
+
+## Documentation Best Practices
+
+### Essential Documentation Elements
+
+| Element | Description | Why It Matters |
+|---------|-------------|----------------|
+| **Overview** | High-level API description | Sets context and expectations |
+| **Authentication** | How to authenticate | Essential for security |
+| **Endpoints** | Complete endpoint list | Core reference material |
+| **Examples** | Request/response examples | Practical guidance |
+| **Error Codes** | All possible errors | Better error handling |
+| **SDKs** | Client libraries | Easier integration |
+| **Change Log** | API evolution tracking | Version management |
+
+### Documentation Structure
+
+```markdown
+# API Documentation
+
+## 1. Introduction
+- Overview
+- Getting started
+- Use cases
+- Support
+
+## 2. Authentication
+- Authentication methods
+- API keys
+- OAuth flow
+- Rate limits
+
+## 3. API Reference
+- Complete endpoint list
+- Detailed parameters
+- Response formats
+- Error codes
+
+## 4. SDKs & Libraries
+- Official SDKs
+- Community libraries
+- Code examples
+- Integration guides
+
+## 5. Guides & Tutorials
+- Quick start
+- Common workflows
+- Best practices
+- Troubleshooting
+
+## 6. Resources
+- Glossary
+- FAQ
+- Support
+- Changelog
+```
+
+### Documentation Anti-Patterns
+
+| Anti-Pattern | Problem | Solution |
+|--------------|---------|----------|
+| **Outdated Docs** | Documentation ≠ API behavior | Auto-sync with code |
+| **No Examples** | Hard to understand usage | Include request/response examples |
+| **Missing Error Codes** | Poor error handling | Document all error scenarios |
+| **Unclear Authentication** | Security confusion | Clear auth instructions |
+| **No Versioning Info** | API changes break clients | Version-specific documentation |
+
+---
+
+## Documentation Automation
+
+### Automated Documentation Generation
+
+#### From Code Comments
+
+```javascript
+/**
+ * @swagger
+ * /users/{id}:
+ *   get:
+ *     summary: Get user by ID
+ *     description: Retrieve user details by unique identifier
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ */
+async function getUserById(req, res) {
+  // Implementation here
+}
+```
+
+#### Automated Docs Pipeline
+
+```mermaid
+graph LR
+    A[Code Changes] --> B[Extract Comments]
+    B --> C[Generate OpenAPI]
+    C --> D[Update Swagger UI]
+    D --> E[Generate Postman Collection]
+    E --> F[Update Documentation]
+    F --> G[Deploy to Production]
+```
+
+### Documentation CI/CD
+
+```yaml
+# .github/workflows/docs.yml
+name: Generate Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Generate OpenAPI spec
+      run: npm run generate:spec
+
+    - name: Validate OpenAPI spec
+      run: npx swagger-cli validate api-spec.json
+
+    - name: Generate Swagger UI
+      run: npm run build:docs
+
+    - name: Deploy documentation
+      run: npm run deploy:docs
+```
+
+### Documentation Monitoring
+
+```javascript
+// Documentation health check
+async function checkDocumentationHealth() {
+  const checks = [
+    {
+      name: 'OpenAPI Spec Valid',
+      check: () => validateOpenAPI('./swagger.json')
+    },
+    {
+      name: 'All Endpoints Documented',
+      check: () => checkEndpointCoverage()
+    },
+    {
+      name: 'Examples Valid',
+      check: () => validateExamples()
+    },
+    {
+      name: 'Links Working',
+      check: () => checkLinks()
+    }
+  ];
+
+  const results = await Promise.allSettled(
+    checks.map(c => c.check().catch(e => ({ error: e.message })))
+  );
+
+  return results.map((result, index) => ({
+    name: checks[index].name,
+    status: result.status === 'fulfilled' ? 'passed' : 'failed',
+    error: result.reason?.error
+  }));
+}
+```
+
+---
+
+## Choosing the Right Documentation Tool
+
+### Decision Framework
+
+```mermaid
+graph TD
+    A[What's Your Goal?] --> B{Public API?}
+    B -->|Yes| C{Budget Available?}
+    B -->|No| D{Team Size?}
+
+    C -->|Yes| E[ReadMe.com]
+    C -->|No| F[OpenAPI + Custom]
+
+    D -->|Large Team| G[Stoplight Studio]
+    D -->|Small Team| H[Swagger UI]
+
+    F -->{Development Need?}
+    F -->|Yes| I[Swagger Hub]
+    F -->|No| J[Static Docs]
+
+    G -->{Enterprise?}
+    G -->|Yes| K[ReadMe.com Enterprise]
+    G -->|No| L[Stoplight]
+```
+
+### Tool Comparison
+
+| Tool | Best For | Pricing | Learning Curve |
+|------|----------|---------|---------------|
+| **Swagger UI** | Simple REST APIs | Free | Low |
+| **ReadMe.com** | Professional public APIs | Paid | Medium |
+| **Postman** | API testing + documentation | Freemium | Low |
+| **Stoplight** | Design-first approach | Paid | Medium |
+| **GitHub Pages** | Static documentation | Free | Low |
+
+### Implementation Recommendations
+
+#### For Public APIs
+**Choose ReadMe.com** if:
+- Professional appearance matters
+- Interactive documentation needed
+- Analytics and usage tracking required
+- Budget available for documentation
+
+#### For Internal APIs
+**Choose Swagger UI** if:
+- Simple documentation needed
+- Tight budget constraints
+- Developer-focused audience
+- OpenAPI standard preferred
+
+#### For Enterprise Teams
+**Choose Stoplight** if:
+- Design-first development approach
+- Large team collaboration needed
+- Mock servers and testing required
+- Comprehensive API lifecycle management
+
+#### For Startups
+**Choose Postman** if:
+- Limited budget
+- Testing and documentation combined
+- Rapid prototyping needed
+- Developer team familiar with Postman
 
 ---
 
 ## Interview Questions
 
-### **Q1: What is the difference between Swagger and OpenAPI?**
-**Answer:**
-- **Swagger**: Original API specification tool, now refers to Swagger UI and related tools
-- **OpenAPI**: Standard specification format (formerly Swagger Specification)
-- **Relationship**: Swagger implements OpenAPI specification
-- **Versions**: OpenAPI 3.0 is the current standard, Swagger 2.0 maps to OpenAPI 2.0
+### Basic Questions
 
-### **Q2: When would you choose Postman over Swagger UI?**
-**Answer:**
-**Choose Postman when:**
-- Need extensive testing capabilities
-- Team collaboration and workflows are important
-- Complex request/response testing required
-- Automated testing and monitoring needed
-- Environment and variable management
+1. **Why is API documentation important?**
+   - Reduces support costs
+   - Accelerates developer adoption
+   - Improves API understanding
+   - Essential for public APIs
 
-**Choose Swagger UI when:**
-- Simple API documentation is sufficient
-- Open source solution preferred
-- Integration with existing OpenAPI spec
-- Minimal setup required
-- Standard API reference needed
+2. **What is OpenAPI Specification?**
+   - Standard for defining RESTful APIs
+   - Machine-readable API description
+   - Formerly known as Swagger
+   - Enables tool generation
 
-### **Q3: What are the benefits of design-first API development?**
-**Answer:**
-**Benefits:**
-- **Consistency**: Standardized API structure before implementation
-- **Collaboration**: Teams can review and approve design
-- **Documentation**: Auto-generated from design
-- **Testing**: Early validation of API contracts
-- **Mocking**: Create mock servers for frontend development
-- **Client Development**: Frontend can start before backend
+3. **What's the difference between Swagger and OpenAPI?**
+   - Swagger was the original name
+   - OpenAPI is the current industry standard
+   - Swagger UI is a tool that renders OpenAPI specs
+   - Swagger ecosystem includes multiple tools
 
-### **Q4: How do you maintain API documentation across multiple environments?**
-**Answer:**
-**Strategies:**
-1. **Single source of truth**: Use OpenAPI specification as source
-2. **Environment-specific configs**: Different base URLs and settings
-3. **Automated synchronization**: CI/CD pipelines to update docs
-4. **Version control**: Track documentation changes with code
-5. **Environment variables**: Use placeholders for environment-specific values
+### Intermediate Questions
 
-### **Q5: What is contract testing and why is it important?**
-**Answer:**
-**Contract testing**: Verifies that API provider and consumer expectations match.
+4. **How do you structure good API documentation?**
+   - Start with overview and getting started
+   - Include authentication methods
+   - Document all endpoints with examples
+   - Provide error codes and troubleshooting
+   - Include SDKs and integration guides
 
-**Important because:**
-- **Prevents integration failures**: Catch issues early
-- **Documentation validation**: Ensure docs match implementation
-- **Regression testing**: Prevent breaking changes
-- **Team collaboration**: Clear provider/consumer contracts
-- **CI/CD integration**: Automated validation
+5. **What are the key components of OpenAPI spec?**
+   - Info section (metadata, versioning)
+   - Servers (base URLs)
+   - Paths (endpoints)
+   - Components (schemas, security schemes)
+   - Security (authentication methods)
 
-### **Q6: How do you handle API versioning in documentation?**
-**Answer:**
-**Approaches:**
-1. **Multiple documentation versions**: Separate docs for each API version
-2. **Version selection**: UI to switch between versions
-3. **Deprecation notices**: Clearly mark deprecated endpoints
-4. **Migration guides**: Help users upgrade between versions
-5. **Backward compatibility**: Document compatibility matrix
+6. **How does Postman help with API documentation?**
+   - Interactive request/response testing
+   - Organized collections
+   - Environment variables for different configs
+   - Test scripts for validation
+   - Sharing capabilities
 
-### **Q7: What makes good API documentation?**
-**Answer:**
-**Key elements:**
-- **Clear introduction**: Overview and getting started
-- **Authentication**: How to authenticate requests
-- **Endpoint reference**: Detailed parameter descriptions
-- **Request/response examples**: Real sample data
-- **Error handling**: Common errors and solutions
-- **SDKs and tools**: Available libraries and integrations
-- **Rate limits**: Usage constraints and limits
-- **Changelogs**: Version history and updates
+### Advanced Questions
+
+7. **How would you implement automated documentation generation?**
+   - Extract doc comments from code
+   - Generate OpenAPI spec automatically
+   - Update Swagger UI on code changes
+   - Validate generated documentation
+   - Deploy with CI/CD pipeline
+
+8. **What are the benefits of design-first documentation?**
+   - Contract between teams
+   - Parallel development
+   - Clear API contracts
+   - Better error handling design
+   - Easier API evolution
+
+9. **How would you monitor documentation quality?**
+   - Validate OpenAPI specs
+   - Check endpoint coverage
+   - Test example validity
+   - Monitor link integrity
+   - Track documentation usage analytics
 
 ---
 
-## Quick Tips & Best Practices
+## Summary
 
-### **Documentation Strategy**
-✅ Design APIs before implementing
-✅ Use OpenAPI specification as single source of truth
-✅ Include practical examples and use cases
-✅ Document authentication and error handling
-✅ Keep documentation synchronized with implementation
+### Key Takeaways
 
-### **OpenAPI/Swagger**
-✅ Use consistent naming conventions
-✅ Include examples for all data types
-✅ Define error responses
-✅ Use `$ref` to avoid duplication
-✅ Validate specifications regularly
+1. **OpenAPI/Swagger**: Industry standard for REST API specification
+2. **Swagger UI**: Interactive documentation that enables API testing
+3. **Postman Collections**: Organized API requests with testing capabilities
+4. **ReadMe.com**: Professional documentation platform for public APIs
+5. **Stoplight**: Visual API design with documentation and testing
+6. **Documentation Automation**: Sync documentation with code automatically
 
-### **Postman Collections**
-✅ Organize requests into logical folders
-✅ Use environment variables for configuration
-✅ Include test scripts for validation
-✅ Document each request clearly
-✅ Use pre-request scripts for setup
+### Documentation Best Practices Checklist
 
-### **Team Collaboration**
-✅ Establish documentation standards
-✅ Review and approve API designs
-✅ Use version control for specifications
-✅ Automate documentation updates
-✅ Provide team training on tools
+- [ ] Include comprehensive authentication guide
+- [ ] Document all endpoints with examples
+- [ ] Provide error codes and troubleshooting
+- [ ] Use semantic versioning
+- [ ] Include getting started guide
+- [ ] Provide SDKs and code examples
+- [ ] Monitor documentation accuracy
+- [ ] Keep docs in sync with API changes
+- [ ] Use visual elements (diagrams, examples)
+- [ ] Include change logs and migration guides
 
-### **Maintenance**
-✅ Schedule regular documentation reviews
-✅ Monitor API usage and feedback
-✅ Update changelogs regularly
-✅ Test documentation examples
-✅ Plan for API deprecation
+### Documentation Strategy Framework
 
----
+```mermaid
+graph TD
+    A[Plan Documentation] --> B{Target Audience?}
+    B -->|Developers| C[Technical Details + Examples]
+    B -->|Business Users| D[High-Level Overview]
+    B -->|Mixed| E[Comprehensive Documentation]
 
-## Chapter Summary
+    C --> F[Swagger UI + OpenAPI]
+    D --> G[ReadMe.com + Guides]
+    E --> H[Multi-tool Approach]
 
-Chapter 6 explores comprehensive API documentation tools and strategies:
+    F --> I[Automation Setup]
+    G --> I
+    H --> I
 
-### **Documentation Tools Overview**
+    I --> J[Monitor & Update]
+```
 
-| Tool | Primary Use | Key Strength |
-|------|-------------|--------------|
-| **Swagger/OpenAPI** | API specification | Industry standard, open source |
-| **Readme.com** | Developer portal | Professional appearance, complete experience |
-| **Stoplight** | Visual API design | Design-first approach, collaboration |
-| **Postman** | Testing & documentation | Powerful testing, team workflows |
-
-### **Key Concepts**
-
-- **OpenAPI Specification**: Standard for REST API documentation
-- **Design-First Development**: API design before implementation
-- **Interactive Documentation**: User can test APIs directly
-- **Mock Servers**: Simulated API responses for development
-- **Contract Testing**: Validation of API contracts
-- **Automation**: CI/CD integration for documentation
-
-### **Implementation Strategy**
-
-1. **Choose tools** based on team needs and budget
-2. **Design APIs** using OpenAPI or visual tools
-3. **Create interactive documentation** for better developer experience
-4. **Implement automated testing** and validation
-5. **Maintain documentation** as code alongside API implementation
-
-Good API documentation is essential for API adoption, developer productivity, and long-term maintainability. Choose tools that fit your workflow and budget while providing the best experience for your API consumers.
+**Next Up**: Chapter 07 explores API Security, covering how to protect your APIs from common vulnerabilities and implement security best practices.
