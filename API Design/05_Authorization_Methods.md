@@ -1,231 +1,170 @@
-# Chapter 5: Authorization Methods
+# Chapter 05: Authorization Methods
+
+## Introduction
+
+**📌 Authorization**: The process of determining what an authenticated user is allowed to do. Think of it like having different keys on your keycard - some keys open certain doors, others open different areas.
+
+**Key Difference**: Authentication proves WHO you are, Authorization controls WHAT you can do.
+
+This chapter covers different approaches to implementing authorization in APIs.
+
+---
 
 ## RBAC (Role-Based Access Control)
 
 ### What is RBAC?
 
-**RBAC** = Role-Based Access Control
+**RBAC (Role-Based Access Control)**: Authorization model where access permissions are assigned to roles, and users are assigned to appropriate roles.
 
-Authorization model where access permissions are assigned to roles, and users are assigned to appropriate roles.
+**📌 Think of it like**: A company with different job titles - CEO, Manager, Employee. Each job title comes with specific permissions (access to certain floors, systems, or data).
 
 ### RBAC Components
-
-#### **Core Elements**
 
 | Component | Description | Example |
 |-----------|-------------|---------|
 | **Users** | System users needing access | John Doe, Jane Smith |
-| **Roles** | Job functions with permissions | Admin, Manager, User |
-| **Permissions** | Granular access rights | read:users, write:posts |
-| **Sessions** | User-role activation | Active login session |
+| **Roles** | Job functions with permissions | Admin, Manager, User, Guest |
+| **Permissions** | Granular access rights | read:users, write:posts, delete:comments |
+| **Sessions** | User-role activation context | Active user session |
 
 ### RBAC Architecture
 
 ```mermaid
 flowchart TD
-    A[Users] -->|Assigned| B[Roles]
+    A[Users] -->|Assigned to| B[Roles]
     B -->|Contains| C[Permissions]
     C -->|Controls| D[Resources]
 
     A -->|Activates| E[User Session]
     E -->|Inherits| B
-    E -->|Accesses| D
 ```
 
 ### RBAC Implementation
 
-#### **Database Schema**
+#### Database Schema
 
 ```sql
 -- Users table
 CREATE TABLE users (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100) UNIQUE,
+  password_hash VARCHAR(255),
+  created_at TIMESTAMP
 );
 
 -- Roles table
 CREATE TABLE roles (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(50) UNIQUE NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id INT PRIMARY KEY,
+  name VARCHAR(50) UNIQUE,
+  description TEXT
 );
 
 -- Permissions table
 CREATE TABLE permissions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(100) UNIQUE NOT NULL,
-    resource VARCHAR(50) NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    description TEXT
-);
-
--- User-Role mapping
-CREATE TABLE user_roles (
-    user_id INT,
-    role_id INT,
-    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, role_id),
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (role_id) REFERENCES roles(id)
+  id INT PRIMARY KEY,
+  name VARCHAR(100) UNIQUE,
+  resource VARCHAR(100),
+  action VARCHAR(50)
 );
 
 -- Role-Permission mapping
 CREATE TABLE role_permissions (
-    role_id INT,
-    permission_id INT,
-    PRIMARY KEY (role_id, permission_id),
-    FOREIGN KEY (role_id) REFERENCES roles(id),
-    FOREIGN KEY (permission_id) REFERENCES permissions(id)
+  role_id INT REFERENCES roles(id),
+  permission_id INT REFERENCES permissions(id),
+  PRIMARY KEY (role_id, permission_id)
+);
+
+-- User-Role assignment
+CREATE TABLE user_roles (
+  user_id INT REFERENCES users(id),
+  role_id INT REFERENCES roles(id),
+  assigned_at TIMESTAMP,
+  PRIMARY KEY (user_id, role_id)
 );
 ```
 
-#### **Node.js Implementation**
+#### Permission Checking Middleware
 
 ```javascript
-const express = require('express');
-const router = express.Router();
+// RBAC Authorization Middleware
+async function checkPermission(requiredPermission) {
+  return async (req, res, next) => {
+    try {
+      const userId = req.user.id;
 
-// Role definition
-const roles = {
-  admin: {
-    permissions: [
-      'users:create',
-      'users:read',
-      'users:update',
-      'users:delete',
-      'posts:create',
-      'posts:read',
-      'posts:update',
-      'posts:delete'
-    ]
-  },
-  moderator: {
-    permissions: [
-      'users:read',
-      'posts:create',
-      'posts:read',
-      'posts:update'
-    ]
-  },
-  user: {
-    permissions: [
-      'posts:create',
-      'posts:read',
-      'profile:update'
-    ]
-  }
-};
+      // Get user's roles
+      const userRoles = await db.query(`
+        SELECT r.* FROM roles r
+        JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = ?
+      `, [userId]);
 
-// User to role mapping
-const userRoles = {
-  1: ['admin'],      // John is admin
-  2: ['moderator'],  // Jane is moderator
-  3: ['user']        // Bob is user
-};
+      // Get permissions for user's roles
+      const roleIds = userRoles.map(role => role.id);
+      const permissions = await db.query(`
+        SELECT p.* FROM permissions p
+        JOIN role_permissions rp ON p.id = rp.permission_id
+        WHERE rp.role_id IN (?)
+      `, [roleIds]);
 
-// Get user permissions
-function getUserPermissions(userId) {
-  const userRoleNames = userRoles[userId] || [];
-  const permissions = new Set();
+      // Check if user has required permission
+      const hasPermission = permissions.some(
+        perm => perm.name === requiredPermission
+      );
 
-  userRoleNames.forEach(roleName => {
-    const role = roles[roleName];
-    if (role) {
-      role.permissions.forEach(permission => {
-        permissions.add(permission);
-      });
-    }
-  });
+      if (!hasPermission) {
+        return res.status(403).json({
+          error: 'Insufficient permissions',
+          required: requiredPermission,
+          message: 'You do not have permission to perform this action'
+        });
+      }
 
-  return Array.from(permissions);
-}
-
-// Authorization middleware
-function requirePermission(resource, action) {
-  return (req, res, next) => {
-    const userId = req.user.id;
-    const requiredPermission = `${resource}:${action}`;
-
-    const userPermissions = getUserPermissions(userId);
-
-    if (userPermissions.includes(requiredPermission)) {
+      req.userPermissions = permissions;
       next();
-    } else {
-      res.status(403).json({
-        error: 'Insufficient permissions',
-        required: requiredPermission
-      });
+
+    } catch (error) {
+      console.error('RBAC check error:', error);
+      res.status(500).json({ error: 'Authorization error' });
     }
   };
 }
-
-// Route usage examples
-router.get('/users', requirePermission('users', 'read'), getUsers);
-router.post('/users', requirePermission('users', 'create'), createUser);
-router.put('/users/:id', requirePermission('users', 'update'), updateUser);
-router.delete('/users/:id', requirePermission('users', 'delete'), deleteUser);
 ```
 
-### RBAC Hierarchy
-
-#### **Role Inheritance**
+#### RBAC Usage Example
 
 ```javascript
-const roleHierarchy = {
-  admin: {
-    inherits: ['moderator'],
-    permissions: ['users:delete', 'system:config']
-  },
-  moderator: {
-    inherits: ['user'],
-    permissions: ['posts:moderate', 'comments:delete']
-  },
-  user: {
-    inherits: [],
-    permissions: ['posts:create', 'profile:update']
+// Protect route with permission check
+app.get('/api/admin/users',
+  authenticateUser,          // First: Verify user identity
+  checkPermission('read:users'),  // Second: Check authorization
+  async (req, res) => {
+    // Only reach here if user has 'read:users' permission
+    const users = await userService.getAllUsers();
+    res.json({ users });
   }
-};
+);
 
-function getAllRolePermissions(roleName) {
-  const role = roleHierarchy[roleName];
-  if (!role) return [];
-
-  let permissions = [...(role.permissions || [])];
-
-  // Get permissions from inherited roles
-  role.inherits.forEach(inheritedRole => {
-    permissions = [
-      ...permissions,
-      ...getAllRolePermissions(inheritedRole)
-    ];
-  });
-
-  return [...new Set(permissions)]; // Remove duplicates
-}
+// Multiple permissions
+app.delete('/api/posts/123',
+  authenticateUser,
+  checkPermission('read:posts', 'write:posts'),
+  async (req, res) => {
+    await postService.deletePost(123);
+    res.json({ success: true });
+  }
+);
 ```
 
-### RBAC Benefits
+### RBAC Benefits and Challenges
 
-| Benefit | Description |
-|---------|-------------|
-| **Simplicity** | Easy to understand and manage |
-| **Scalability** | Works well with large user bases |
-| **Efficiency** | Fast permission checks |
-| **Auditing** | Clear access trail |
-| **Compliance** | Meets many regulatory requirements |
-
-### RBAC Limitations
-
-| Limitation | Impact |
-|------------|--------|
-| **Coarse-grained** | Limited flexibility for fine permissions |
-| **Role Explosion** | Too many roles become unmanageable |
-| **Static** | Doesn't adapt to context |
-| **Maintenance** | Requires ongoing role management |
+| Aspect | Benefits | Challenges |
+|--------|---------|------------|
+| **Scalability** | Easy to manage | Role explosion possible |
+| **Maintenance** | Centralized control | Complex permission mapping |
+| **Auditability** | Clear access trails | Performance overhead |
+| **Flexibility** | Fine-grained control | Can become complex |
 
 ---
 
@@ -233,983 +172,187 @@ function getAllRolePermissions(roleName) {
 
 ### What is ABAC?
 
-**ABAC** = Attribute-Based Access Control
+**ABAC (Attribute-Based Access Control)**: Advanced authorization model that uses attributes (properties) of users, resources, and environment to make access decisions.
 
-Authorization model that uses attributes (user, resource, action, environment) to make access decisions.
+**📌 Think of it like**: A smart building where your keycard is checked against multiple factors - your job title, clearance level, time of day, and location - before deciding which doors you can open.
 
 ### ABAC Components
 
-#### **Attribute Types**
+| Component | Description | Examples |
+|-----------|-------------|----------|
+| **User Attributes** | Properties of the user | role:manager, clearance:secret, department:finance |
+| **Resource Attributes** | Properties of the resource | sensitivity:secret, owner:jane, classification:public |
+| **Action Attributes** | Properties of the action | time:after-hours, type:bulk_operation |
+| **Environment Attributes** | Context of access | location:office, time:night, device:mobile |
 
-| Attribute Type | Description | Examples |
-|----------------|-------------|----------|
-| **Subject** | User attributes | role, department, clearance_level |
-| **Resource** | Object attributes | classification, owner, department |
-| **Action** | Operation attributes | type, risk_level, sensitivity |
-| **Environment** | Context attributes | time, location, device_type |
+### ABAC Policy Languages
 
-### ABAC Architecture
+#### XACML (eXtensible Access Control Markup Language)
 
-```mermaid
-flowchart TD
-    A[Access Request] --> B[Policy Engine]
-    C[Subject Attributes] --> B
-    D[Resource Attributes] --> B
-    E[Action Attributes] --> B
-    F[Environment Attributes] --> B
-    G[Policy Rules] --> B
-    B --> H[Access Decision]
+```xml
+<!-- ABAC Policy Example -->
+<Policy>
+  <Target>
+    <Subject AttributeDesignator="role" />
+    <Resource AttributeDesignator="classification" />
+    <Action AttributeDesignator="access" />
+  </Target>
+
+  <Rule Effect="Permit">
+    <Subject AttributeDesignator="role" AttributeValue="admin" />
+    <Resource AttributeDesignator="classification" AttributeValue="secret" />
+  </Rule>
+
+  <Rule Effect="Deny">
+    <Subject AttributeDesignator="role" AttributeValue="user" />
+    <Resource AttributeDesignator="classification" AttributeValue="secret" />
+  </Rule>
+</Policy>
 ```
 
-### ABAC Policy Examples
+#### ALFA (Abbreviated Language for Authorization)
 
-#### **Policy Language Example**
+```alica
+// ABAC Policy in ALFA
+// Managers can access financial records during business hours
+user.role == "manager" AND
+resource.type == "financial" AND
+environment.time BETWEEN "09:00" AND "17:00" AND
+action == "access"
+-> permit;
 
-```javascript
-// Policy: Users can access documents if:
-// 1. They work in the same department
-// 2. The document is not classified
-// 3. Access is during business hours
-
-const policies = [
-  {
-    name: "document_access_policy",
-    rules: [
-      {
-        conditions: [
-          "user.department == document.owner_department",
-          "document.classification != 'confidential'",
-          "environment.time.hour >= 9",
-          "environment.time.hour <= 17"
-        ],
-        effect: "allow",
-        actions: ["read", "write"]
-      }
-    ]
-  }
-];
-```
-
-#### **Complex ABAC Rules**
-
-```javascript
-// Medical records access policy
-const healthcarePolicies = {
-  policies: [
-    {
-      id: "medical_record_access",
-      description: "Access to patient medical records",
-      rules: [
-        {
-          name: "doctor_access_own_patients",
-          when: {
-            subject: {
-              role: "doctor",
-              department: "medical"
-            },
-            resource: {
-              type: "medical_record"
-            },
-            relationship: {
-              "doctor.id": "patient.primary_care_physician"
-            },
-            action: ["read", "update"],
-            environment: {
-              time: {
-                hour: { min: 8, max: 20 }
-              }
-            }
-          },
-          effect: "allow"
-        },
-        {
-          name: "emergency_access",
-          when: {
-            subject: {
-              role: ["doctor", "nurse"]
-            },
-            resource: {
-              type: "medical_record",
-              emergency: true
-            },
-            action: ["read"]
-          },
-          effect: "allow"
-        },
-        {
-          name: "research_access_anonymized",
-          when: {
-            subject: {
-              role: "researcher",
-              clearance: "research"
-            },
-            resource: {
-              type: "medical_record",
-              anonymized: true
-            },
-            action: ["read"],
-            environment: {
-              location: "hospital_network"
-            }
-          },
-          effect: "allow"
-        }
-      ]
-    }
-  ]
-};
+// Users cannot access admin-only resources
+user.role != "admin" AND
+resource.type == "admin" AND
+action == "access"
+-> deny;
 ```
 
 ### ABAC Implementation
 
-#### **Policy Engine**
-
 ```javascript
+// ABAC Policy Engine
 class ABACPolicyEngine {
-  constructor(policies) {
-    this.policies = policies;
-  }
-
-  evaluate(accessRequest) {
-    const {
-      subject,
-      resource,
-      action,
-      environment
-    } = accessRequest;
-
-    for (const policy of this.policies.policies) {
-      for (const rule of policy.rules) {
-        if (this.evaluateRule(rule, { subject, resource, action, environment })) {
-          return {
-            allowed: rule.effect === "allow",
-            policy: policy.id,
-            rule: rule.name
-          };
-        }
-      }
-    }
-
-    return { allowed: false, reason: "No matching policy" };
-  }
-
-  evaluateRule(rule, context) {
-    return rule.when && this.evaluateConditions(rule.when, context);
-  }
-
-  evaluateConditions(conditions, context) {
-    for (const [key, value] of Object.entries(conditions)) {
-      if (key === "relationship") {
-        if (!this.evaluateRelationships(value, context)) {
-          return false;
-        }
-      } else if (typeof value === "object" && value !== null) {
-        if (!this.evaluateNestedConditions(key, value, context)) {
-          return false;
-        }
-      } else {
-        if (!this.evaluateCondition(key, value, context)) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  evaluateCondition(path, expectedValue, context) {
-    const actualValue = this.getValueFromPath(path, context);
-
-    if (Array.isArray(expectedValue)) {
-      return expectedValue.includes(actualValue);
-    }
-
-    if (typeof expectedValue === "object" && expectedValue !== null) {
-      return this.evaluateRangeCondition(actualValue, expectedValue);
-    }
-
-    return actualValue === expectedValue;
-  }
-
-  getValueFromPath(path, context) {
-    const [section, ...keys] = path.split(".");
-    let value = context[section];
-
-    for (const key of keys) {
-      if (value && typeof value === "object") {
-        value = value[key];
-      } else {
-        return undefined;
-      }
-    }
-
-    return value;
-  }
-
-  evaluateRangeCondition(actualValue, rangeCondition) {
-    if (rangeCondition.min !== undefined && actualValue < rangeCondition.min) {
-      return false;
-    }
-    if (rangeCondition.max !== undefined && actualValue > rangeCondition.max) {
-      return false;
-    }
-    return true;
-  }
-}
-
-// Usage example
-const policyEngine = new ABACPolicyEngine(healthcarePolicies);
-
-const accessRequest = {
-  subject: {
-    id: "dr_smith",
-    role: "doctor",
-    department: "medical"
-  },
-  resource: {
-    id: "record_123",
-    type: "medical_record",
-    patient_id: "patient_456",
-    primary_care_physician: "dr_smith",
-    classification: "confidential",
-    anonymized: false
-  },
-  action: "read",
-  environment: {
-    time: { hour: 14, minute: 30 },
-    location: "hospital_network",
-    device: "workstation"
-  }
-};
-
-const decision = policyEngine.evaluate(accessRequest);
-console.log(decision); // { allowed: true, policy: "medical_record_access", rule: "doctor_access_own_patients" }
-```
-
-### ABAC vs RBAC Comparison
-
-| Aspect | RBAC | ABAC |
-|--------|------|------|
-| **Granularity** | Coarse-grained | Fine-grained |
-| **Flexibility** | Limited | High |
-| **Complexity** | Simple | Complex |
-| **Performance** | Fast | Slower |
-| **Administration** | Role management | Policy management |
-| **Context-aware** | No | Yes |
-| **Scalability** | Good | Excellent |
-
----
-
-## DAC (Discretionary Access Control)
-
-### What is DAC?
-
-**DAC** = Discretionary Access Control
-
-Authorization model where the owner of a resource determines who has access rights.
-
-### DAC Characteristics
-
-| Feature | Description |
-|---------|-------------|
-| **Owner Control** | Resource owners control access |
-| **Flexibility** | Fine-grained permissions |
-| **Inheritance** | Permissions can be inherited |
-| **Delegation** | Access rights can be delegated |
-
-### DAC Implementation
-
-#### **File System Analogy**
-
-```javascript
-// File system permissions model
-class FileSystemPermission {
-  constructor(path) {
-    this.path = path;
-    this.owner = null;
-    this.group = null;
-    this.permissions = {
-      owner: { read: false, write: false, execute: false },
-      group: { read: false, write: false, execute: false },
-      others: { read: false, write: false, execute: false }
+  constructor() {
+    this.policies = [];
+    this.attributes = {
+      user: {},
+      resource: {},
+      environment: {}
     };
   }
 
-  setPermissions(userPermissions) {
-    this.permissions.owner = userPermissions.owner || this.permissions.owner;
-    this.permissions.group = userPermissions.group || this.permissions.group;
-    this.permissions.others = userPermissions.others || this.permissions.others;
+  // Define policy
+  addPolicy(condition, effect) {
+    this.policies.push({ condition, effect });
   }
 
-  checkAccess(user, action) {
-    // Owner access
-    if (this.owner === user.id) {
-      return this.permissions.owner[action] || false;
+  // Evaluate policies
+  async evaluate(user, resource, action, environment) {
+    this.attributes.user = user;
+    this.attributes.resource = resource;
+    this.attributes.environment = environment;
+
+    for (const policy of this.policies) {
+      const result = await this.evaluateCondition(policy.condition);
+      if (result && policy.effect === 'deny') {
+        return { allowed: false, reason: policy.condition };
+      }
     }
 
-    // Group access
-    if (this.group && user.groups.includes(this.group)) {
-      return this.permissions.group[action] || false;
-    }
+    // Check if any permit policy applies
+    const hasPermit = this.policies.some(policy =>
+      policy.effect === 'permit' &&
+      this.evaluateCondition(policy.condition)
+    );
 
-    // Others access
-    return this.permissions.others[action] || false;
+    return {
+      allowed: hasPermit || this.policies.length === 0,
+      appliedPolicies: this.policies.length
+    };
+  }
+
+  evaluateCondition(condition) {
+    // Simple condition evaluator
+    try {
+      return eval(condition.replace(/\$(\w+)/g, 'this.attributes.$1'));
+    } catch (error) {
+      console.error('Condition evaluation error:', error);
+      return false;
+    }
   }
 }
-
-// Usage
-const filePermission = new FileSystemPermission('/documents/report.pdf');
-filePermission.owner = 'user_123';
-filePermission.group = 'finance_team';
-
-filePermission.setPermissions({
-  owner: { read: true, write: true, execute: false },
-  group: { read: true, write: false, execute: false },
-  others: { read: false, write: false, execute: false }
-});
-
-// Check access
-const user = { id: 'user_456', groups: ['finance_team'] };
-const canRead = filePermission.checkAccess(user, 'read'); // true
-const canWrite = filePermission.checkAccess(user, 'write'); // false
 ```
 
-#### **API Resource Ownership**
+#### ABAC Usage Example
 
 ```javascript
-class DACAuthorization {
-  constructor() {
-    this.resources = new Map();
-    this.owners = new Map();
-    this.permissions = new Map();
-  }
+// Initialize ABAC policy engine
+const policyEngine = new ABACPolicyEngine();
 
-  createResource(resourceId, ownerId) {
-    this.resources.set(resourceId, {
-      id: resourceId,
-      owner: ownerId,
-      created_at: new Date()
-    });
+// Define policies
+policyEngine.addPolicy(
+  'user.role === "admin" && resource.sensitivity === "secret"',
+  'permit'
+);
 
-    // Owner gets full permissions
-    this.setPermission(resourceId, ownerId, {
-      read: true,
-      write: true,
-      delete: true,
-      share: true
-    });
-  }
+policyEngine.addPolicy(
+  'user.role === "user" && resource.sensitivity === "public"',
+  'permit'
+);
 
-  setPermission(resourceId, userId, permissions) {
-    const key = `${resourceId}:${userId}`;
-    this.permissions.set(key, permissions);
-  }
+policyEngine.addPolicy(
+  'user.role === "guest"',
+  'deny'
+);
 
-  grantAccess(resourceId, ownerId, userId, permissions) {
-    // Check if requester is owner
-    if (!this.isOwner(resourceId, ownerId)) {
-      throw new Error('Only resource owners can grant access');
-    }
+// Middleware to check ABAC policies
+async function checkABACAuthorization(action) {
+  return async (req, res, next) => {
+    const user = req.user;
+    const resource = { sensitivity: req.resource.sensitivity };
+    const environment = {
+      time: new Date().getHours(),
+      location: req.ip,
+      device: req.headers['user-agent']
+    };
 
-    this.setPermission(resourceId, userId, permissions);
-  }
+    const result = await policyEngine.evaluate(user, resource, action, environment);
 
-  checkAccess(resourceId, userId, action) {
-    // Owner always has access
-    if (this.isOwner(resourceId, userId)) {
-      return true;
-    }
-
-    // Check explicit permissions
-    const permissions = this.getUserPermissions(resourceId, userId);
-    return permissions && permissions[action] === true;
-  }
-
-  isOwner(resourceId, userId) {
-    const resource = this.resources.get(resourceId);
-    return resource && resource.owner === userId;
-  }
-
-  getUserPermissions(resourceId, userId) {
-    const key = `${resourceId}:${userId}`;
-    return this.permissions.get(key);
-  }
-}
-
-// Middleware for API routes
-function requireDACAccess(action) {
-  return (req, res, next) => {
-    const resourceId = req.params.id;
-    const userId = req.user.id;
-
-    if (dacAuth.checkAccess(resourceId, userId, action)) {
-      next();
-    } else {
-      res.status(403).json({
+    if (!result.allowed) {
+      return res.status(403).json({
         error: 'Access denied',
-        action: action,
-        resource: resourceId
+        reason: result.appliedPolicies > 0 ?
+          'No matching policies found' :
+          'Access denied by policy rules'
       });
     }
+
+    next();
   };
 }
 
-// Route usage
-app.get('/api/documents/:id', requireDACAccess('read'), getDocument);
-app.put('/api/documents/:id', requireDACAccess('write'), updateDocument);
-app.delete('/api/documents/:id', requireDACAccess('delete'), deleteDocument);
-
-// Grant access endpoint
-app.post('/api/documents/:id/share', (req, res) => {
-  const { userId, permissions } = req.body;
-  const resourceId = req.params.id;
-  const ownerUserId = req.user.id;
-
-  try {
-    dacAuth.grantAccess(resourceId, ownerUserId, userId, permissions);
-    res.json({ message: 'Access granted successfully' });
-  } catch (error) {
-    res.status(403).json({ error: error.message });
-  }
-});
-```
-
-### DAC Use Cases
-
-| Use Case | Why DAC Works |
-|----------|---------------|
-| **File Sharing** | Users control their files |
-| **Document Collaboration** | Owners invite collaborators |
-| **Personal Data** | User controls own information |
-| **Social Media** | Users control post visibility |
-| **Cloud Storage** | User controls file access |
-
----
-
-## MAC (Mandatory Access Control)
-
-### What is MAC?
-
-**MAC** = Mandatory Access Control
-
-Authorization model where access decisions are based on security labels and clearances, not owner discretion.
-
-### MAC Components
-
-#### **Security Labels**
-
-| Component | Description | Examples |
-|-----------|-------------|----------|
-| **Classification Level** | Data sensitivity | Unclassified, Confidential, Secret, Top Secret |
-| **Category** | Subject area | Finance, HR, Engineering |
-| **Compartment** | Specific project or need-to-know | Project_X, Research_Division |
-
-#### **Clearance Levels**
-
-| Clearance | Can Access |
-|-----------|------------|
-| **Unclassified** | Unclassified data only |
-| **Confidential** | Confidential + Unclassified |
-| **Secret** | Secret + Confidential + Unclassified |
-| **Top Secret** | All levels |
-
-### MAC Implementation
-
-#### **Security Model**
-
-```javascript
-class MACSecurityModel {
-  constructor() {
-    this.classificationLevels = {
-      'UNC': 0,    // Unclassified
-      'C': 1,      // Confidential
-      'S': 2,      // Secret
-      'TS': 3      // Top Secret
-    };
-
-    this.categories = new Set(['FINANCE', 'HR', 'ENGINEERING', 'RESEARCH']);
-    this.compartments = new Set(['PROJECT_ALPHA', 'PROJECT_BETA', 'LEGACY']);
-  }
-
-  createSecurityLabel(classification, categories = [], compartments = []) {
-    return {
-      classification,
-      categories: new Set(categories),
-      compartments: new Set(compartments)
-    };
-  }
-
-  createClearance(classification, categories = [], compartments = []) {
-    return this.createSecurityLabel(classification, categories, compartments);
-  }
-
-  canAccess(subjectClearance, objectLabel) {
-    // Check classification level (dominance)
-    if (!this.dominatesClassification(
-      subjectClearance.classification,
-      objectLabel.classification
-    )) {
-      return false;
-    }
-
-    // Check categories (superset)
-    if (!this.supersetOf(
-      subjectClearance.categories,
-      objectLabel.categories
-    )) {
-      return false;
-    }
-
-    // Check compartments (superset)
-    if (!this.supersetOf(
-      subjectClearance.compartments,
-      objectLabel.compartments
-    )) {
-      return false;
-    }
-
-    return true;
-  }
-
-  dominatesClassification(subjectLevel, objectLevel) {
-    return this.classificationLevels[subjectLevel] >=
-           this.classificationLevels[objectLevel];
-  }
-
-  supersetOf(setA, setB) {
-    for (const item of setB) {
-      if (!setA.has(item)) {
-        return false;
-      }
-    }
-    return true;
-  }
-}
-
-// Usage
-const macModel = new MACSecurityModel();
-
-// User clearances
-const userClearance = {
-  alice: macModel.createClearance('S', ['FINANCE', 'HR'], []),
-  bob: macModel.createClearance('C', ['FINANCE'], []),
-  charlie: macModel.createClearance('TS', ['FINANCE', 'HR', 'ENGINEERING'], ['PROJECT_ALPHA'])
-};
-
-// Document labels
-const documentLabels = {
-  report1: macModel.createSecurityLabel('C', ['FINANCE'], []),
-  project1: macModel.createSecurityLabel('S', ['ENGINEERING'], ['PROJECT_ALPHA']),
-  hrData: macModel.createSecurityLabel('TS', ['HR'], [])
-};
-
-// Check access
-console.log('Alice can access report1:',
-  macModel.canAccess(userClearance.alice, documentLabels.report1)); // true
-console.log('Bob can access project1:',
-  macModel.canAccess(userClearance.bob, documentLabels.project1)); // false
-console.log('Charlie can access hrData:',
-  macModel.canAccess(userClearance.charlie, documentLabels.hrData)); // true
-```
-
-#### **API Implementation**
-
-```javascript
-class MACAuthorization {
-  constructor() {
-    this.securityModel = new MACSecurityModel();
-    this.userClearances = new Map();
-    this.resourceLabels = new Map();
-  }
-
-  setUserClearance(userId, clearance) {
-    this.userClearances.set(userId, clearance);
-  }
-
-  setResourceLabel(resourceId, label) {
-    this.resourceLabels.set(resourceId, label);
-  }
-
-  checkAccess(userId, resourceId) {
-    const userClearance = this.userClearances.get(userId);
-    const resourceLabel = this.resourceLabels.get(resourceId);
-
-    if (!userClearance || !resourceLabel) {
-      return { allowed: false, reason: 'Missing clearance or label' };
-    }
-
-    const allowed = this.securityModel.canAccess(userClearance, resourceLabel);
-
-    return {
-      allowed,
-      userClearance,
-      resourceLabel,
-      reason: allowed ? 'Access granted' : 'Insufficient clearance'
-    };
-  }
-}
-
-// Middleware
-function requireMACAccess(resourceIdParam = 'id') {
-  return (req, res, next) => {
-    const resourceId = req.params[resourceIdParam];
-    const userId = req.user.id;
-
-    const accessResult = macAuth.checkAccess(userId, resourceId);
-
-    if (accessResult.allowed) {
-      req.macContext = accessResult;
-      next();
-    } else {
-      res.status(403).json({
-        error: 'Access denied',
-        reason: accessResult.reason,
-        resource: resourceId
-      });
-    }
-  };
-}
-
-// Route usage
-app.get('/api/documents/:id',
-  requireMACAccess('id'),
-  (req, res) => {
-    // User has MAC clearance for this resource
-    res.json({
-      document: getDocument(req.params.id),
-      securityContext: req.macContext
-    });
+// Apply to route
+app.get('/api/secret-data',
+  authenticateUser,
+  checkABACAuthorization('read'),
+  async (req, res) => {
+    const data = await secretService.getData();
+    res.json({ data });
   }
 );
 ```
 
-### MAC Use Cases
+### ABAC vs RBAC
 
-| Environment | Why MAC |
-|-------------|----------|
-| **Military/Government** | National security requirements |
-| **Intelligence Agencies** | Compartmentalized information |
-| **Financial Institutions** | Regulatory compliance |
-| **Healthcare** | HIPAA compliance |
-| **Critical Infrastructure** | High security requirements |
-
----
-
-## PBAC (Policy-Based Access Control)
-
-### What is PBAC?
-
-**PBAC** = Policy-Based Access Control
-
-Authorization model that uses predefined policies to determine access rights based on various attributes and conditions.
-
-### PBAC Policy Structure
-
-#### **Policy Definition**
-
-```javascript
-const pbacPolicies = {
-  policies: [
-    {
-      id: "financial_data_access",
-      name: "Financial Data Access Policy",
-      description: "Controls access to financial reports and data",
-      rules: [
-        {
-          name: "finance_department_access",
-          priority: 1,
-          conditions: [
-            {
-              type: "attribute",
-              attribute: "user.department",
-              operator: "equals",
-              value: "finance"
-            },
-            {
-              type: "attribute",
-              attribute: "resource.type",
-              operator: "in",
-              value: ["financial_report", "transaction", "budget"]
-            },
-            {
-              type: "attribute",
-              attribute: "action",
-              operator: "in",
-              value: ["read", "write", "export"]
-            }
-          ],
-          effect: "allow",
-          obligations: [
-            "log_access_attempt",
-            "notify_financial_manager"
-          ]
-        },
-        {
-          name: "executive_summary_access",
-          priority: 2,
-          conditions: [
-            {
-              type: "attribute",
-              attribute: "user.role",
-              operator: "in",
-              value: ["ceo", "cfo", "coo"]
-            },
-            {
-              type: "attribute",
-              attribute: "resource.classification",
-              operator: "equals",
-              value: "executive_summary"
-            },
-            {
-              type: "time",
-              attribute: "environment.time.hour",
-              operator: "between",
-              value: [9, 17]
-            }
-          ],
-          effect: "allow",
-          obligations: ["audit_log"]
-        },
-        {
-          name: "auditor_access",
-          priority: 3,
-          conditions: [
-            {
-              type: "attribute",
-              attribute: "user.role",
-              operator: "equals",
-              value: "auditor"
-            },
-            {
-              type: "attribute",
-              attribute: "audit.status",
-              operator: "equals",
-              value: "active"
-            },
-            {
-              type: "relationship",
-              relationship: "user.can_audit",
-              target: "resource.owner_department"
-            }
-          ],
-          effect: "allow",
-          obligations: ["detailed_audit_trail"]
-        }
-      ]
-    },
-    {
-      id: "healthcare_data_access",
-      name: "HIPAA Healthcare Data Access",
-      rules: [
-        {
-          name: "provider_patient_relationship",
-          conditions: [
-            {
-              type: "attribute",
-              attribute: "user.role",
-              operator: "in",
-              value: ["doctor", "nurse", "therapist"]
-            },
-            {
-              type: "relationship",
-              relationship: "user.treating",
-              target: "resource.patient_id"
-            },
-            {
-              type: "consent",
-              consent_type: "medical_treatment",
-              patient: "resource.patient_id",
-              status: "active"
-            }
-          ],
-          effect: "allow"
-        }
-      ]
-    }
-  ]
-};
-```
-
-### PBAC Engine Implementation
-
-```javascript
-class PBACPolicyEngine {
-  constructor(policies) {
-    this.policies = policies;
-  }
-
-  evaluate(accessRequest) {
-    const { subject, resource, action, environment } = accessRequest;
-
-    const applicablePolicies = this.findApplicablePolicies(resource.type);
-    const results = [];
-
-    for (const policy of applicablePolicies) {
-      for (const rule of policy.rules) {
-        const result = this.evaluateRule(rule, accessRequest);
-        if (result.decision !== "not_applicable") {
-          results.push({
-            policyId: policy.id,
-            ruleName: rule.name,
-            decision: result.decision,
-            obligations: rule.obligations || [],
-            priority: rule.priority || 0
-          });
-        }
-      }
-    }
-
-    return this.resolveConflicts(results);
-  }
-
-  evaluateRule(rule, context) {
-    const allConditionsMet = rule.conditions.every(condition =>
-      this.evaluateCondition(condition, context)
-    );
-
-    if (allConditionsMet) {
-      return { decision: rule.effect };
-    }
-
-    return { decision: "not_applicable" };
-  }
-
-  evaluateCondition(condition, context) {
-    switch (condition.type) {
-      case "attribute":
-        return this.evaluateAttributeCondition(condition, context);
-      case "time":
-        return this.evaluateTimeCondition(condition, context);
-      case "relationship":
-        return this.evaluateRelationshipCondition(condition, context);
-      case "consent":
-        return this.evaluateConsentCondition(condition, context);
-      default:
-        return false;
-    }
-  }
-
-  evaluateAttributeCondition(condition, context) {
-    const value = this.getAttributeValue(condition.attribute, context);
-
-    switch (condition.operator) {
-      case "equals":
-        return value === condition.value;
-      case "not_equals":
-        return value !== condition.value;
-      case "in":
-        return Array.isArray(condition.value) && condition.value.includes(value);
-      case "not_in":
-        return Array.isArray(condition.value) && !condition.value.includes(value);
-      case "contains":
-        return Array.isArray(value) && value.includes(condition.value);
-      case "greater_than":
-        return value > condition.value;
-      case "less_than":
-        return value < condition.value;
-      case "between":
-        return value >= condition.value[0] && value <= condition.value[1];
-      default:
-        return false;
-    }
-  }
-
-  getAttributeValue(attributePath, context) {
-    const [entityType, ...path] = attributePath.split('.');
-    let value = context[entityType];
-
-    for (const key of path) {
-      if (value && typeof value === 'object') {
-        value = value[key];
-      } else {
-        return undefined;
-      }
-    }
-
-    return value;
-  }
-
-  evaluateTimeCondition(condition, context) {
-    const currentValue = this.getAttributeValue(condition.attribute, context);
-
-    switch (condition.operator) {
-      case "between":
-        return currentValue >= condition.value[0] && currentValue <= condition.value[1];
-      case "equals":
-        return currentValue === condition.value;
-      default:
-        return false;
-    }
-  }
-
-  evaluateRelationshipCondition(condition, context) {
-    // This would implement relationship checking logic
-    // For example, checking if a user is treating a specific patient
-    return checkRelationship(condition.relationship, condition.target, context);
-  }
-
-  evaluateConsentCondition(condition, context) {
-    // This would check consent records and status
-    return checkConsent(condition, context);
-  }
-
-  resolveConflicts(results) {
-    if (results.length === 0) {
-      return {
-        decision: "deny",
-        reason: "No applicable policies",
-        obligations: []
-      };
-    }
-
-    // Sort by priority (higher priority wins)
-    results.sort((a, b) => b.priority - a.priority);
-
-    const highestPriority = results[0];
-
-    // Check for conflicts with same priority
-    const conflicting = results.filter(r =>
-      r.priority === highestPriority.priority && r.decision !== highestPriority.decision
-    );
-
-    if (conflicting.length > 0) {
-      return {
-        decision: "deny", // Deny on conflict
-        reason: "Conflicting policy decisions",
-        conflictingRules: conflicting.map(r => r.ruleName)
-      };
-    }
-
-    return {
-      decision: highestPriority.decision,
-      policy: highestPriority.policyId,
-      rule: highestPriority.ruleName,
-      obligations: highestPriority.obligations,
-      allResults: results
-    };
-  }
-
-  findApplicablePolicies(resourceType) {
-    return this.policies.policies.filter(policy =>
-      policy.rules.some(rule =>
-        rule.conditions.some(condition =>
-          condition.attribute && condition.attribute.includes(resourceType)
-        )
-      )
-    );
-  }
-}
-```
-
-### PBAC vs Other Models
-
-| Feature | RBAC | ABAC | PBAC |
-|---------|------|------|------|
-| **Policy Definition** | Role-based | Attribute-based | Explicit policies |
-| **Complexity** | Simple | High | Medium-High |
-| **Flexibility** | Limited | High | Very High |
-| **Admin Overhead** | Low | High | Medium |
-| **Auditing** | Basic | Detailed | Very Detailed |
-| **Obligations** | No | Yes | Yes |
+| Aspect | ABAC | RBAC |
+|--------|------|------|
+| **Flexibility** | Very High | Medium |
+| **Complexity** | Very High | Low |
+| **Scalability** | High | Medium |
+| **Maintenance** | Complex | Simple |
+| **Performance** | Slower | Faster |
+| **Use Cases** | Complex, dynamic | Simple, static |
 
 ---
 
@@ -1217,546 +360,721 @@ class PBACPolicyEngine {
 
 ### What is ReBAC?
 
-**ReBAC** = Relationship-Based Access Control
+**ReBAC (Relationship-Based Access Control)**: Authorization model where access decisions are based on relationships between entities (users, resources, and their connections).
 
-Authorization model that determines access based on the relationships between entities (users, resources, and actions).
+**📌 Think of it like**: Social networks - you can see content from people you're connected to, but not from strangers, regardless of your role.
 
-### ReBAC Concepts
+### ReBAC Components
 
-#### **Relationship Types**
+| Component | Description | Examples |
+|-----------|-------------|---------|
+| **Subjects** | Entities requesting access | Users, Organizations |
+| **Objects** | Resources being accessed | Documents, Folders, Groups |
+| **Relationships** | Connections between subjects and objects | Friend-of, Member-of, Owner-of |
+| **Access Rights** | Permissions based on relationships | View, Edit, Share |
 
-| Relationship Type | Description | Example |
-|-------------------|-------------|---------|
-| **Ownership** | User owns resource | User → Document |
-| **Membership** | User belongs to group | User → Team |
-| **Hierarchy** | Parent-child relationships | Manager → Employee |
-| **Collaboration** | Working together | Editor → Document |
-| **Delegation** | Temporary authority | Manager → Assistant |
+### ReBAC Relationship Types
 
-### ReBAC Architecture
-
-```mermaid
-flowchart TD
-    A[User] -->|owns| B[Document]
-    A -->|member_of| C[Team]
-    A -->|manages| D[Employee]
-    A -->|collaborates_on| E[Project]
-    C -->|has_access_to| F[Folder]
-    E -->|contains| G[Resource]
-
-    H[Access Request] --> I[Relationship Graph]
-    I --> J[Path Analysis]
-    J --> K[Access Decision]
-```
+| Relationship | Description | Graph Pattern |
+|------------|-------------|-------------|
+| **Ownership** | User owns the resource | (User)-[:owns]->(Document) |
+| **Friendship** | Users are connected socially | (User)-[:friend]->(User) |
+| **Membership** | User belongs to a group | (User)-[:member]->(Group) |
+| **Collaboration** | Users work together | (User)-[:collaborator]->(Project) |
+| **Hierarchical** | Organizational structure | (User)-[:reports_to]->(User) |
 
 ### ReBAC Implementation
 
-#### **Relationship Graph**
-
 ```javascript
+// ReBAC Authorization System
 class ReBACGraph {
   constructor() {
-    this.nodes = new Map(); // id -> node data
-    this.edges = new Map(); // relationship -> Set of edges
-    this.relationships = new Map(); // edge_id -> relationship data
+    this.nodes = new Map();  // Users, groups, resources
+    this.edges = new Map();  // Relationships
   }
 
-  addNode(id, type, attributes = {}) {
-    this.nodes.set(id, {
-      id,
-      type,
-      attributes,
-      relationships: new Set()
-    });
+  // Add node (user, group, resource)
+  addNode(id, attributes) {
+    this.nodes.set(id, { ...attributes, relationships: [] });
   }
 
-  addRelationship(fromId, toId, type, attributes = {}) {
-    const edgeId = `${fromId}-${type}-${toId}`;
+  // Add relationship
+  addEdge(fromId, toId, type, permissions) {
+    if (!this.nodes.has(fromId) || !this.nodes.has(toId)) {
+      throw new Error('One or both nodes do not exist');
+    }
 
-    const relationship = {
-      id: edgeId,
-      from: fromId,
-      to: toId,
-      type,
-      attributes,
-      created_at: new Date()
-    };
-
-    this.relationships.set(edgeId, relationship);
+    this.edges.set(`${fromId}:${toId}`, { type, permissions });
 
     // Update node relationships
     const fromNode = this.nodes.get(fromId);
     const toNode = this.nodes.get(toId);
 
-    if (fromNode) fromNode.relationships.add(edgeId);
-    if (toNode) toNode.relationships.add(edgeId);
-
-    return relationship;
+    fromNode.relationships.push({ id: toId, type, permissions });
   }
 
-  findRelationships(fromId, type = null, toId = null) {
-    const results = [];
+  // Check if access is allowed
+  async checkAccess(userId, resourceId, action) {
+    const visited = new Set();
+    const queue = [{ id: userId, depth: 0 }];
 
-    for (const [edgeId, relationship] of this.relationships) {
-      if (fromId && relationship.from !== fromId) continue;
-      if (type && relationship.type !== type) continue;
-      if (toId && relationship.to !== toId) continue;
+    while (queue.length > 0) {
+      const current = queue.shift();
+      visited.add(current.id);
 
-      results.push(relationship);
-    }
+      if (current.id === resourceId) {
+        // Found path - check permissions
+        const edgeId = `${userId}:${current.id}`;
+        const edge = this.edges.get(edgeId);
 
-    return results;
-  }
-
-  findPaths(fromId, toId, maxDepth = 5) {
-    const visited = new Set([fromId]);
-    const paths = [];
-
-    function dfs(currentId, targetId, currentPath, depth) {
-      if (currentId === targetId) {
-        paths.push([...currentPath]);
-        return;
-      }
-
-      if (depth >= maxDepth) return;
-
-      const currentNode = this.nodes.get(currentId);
-      if (!currentNode) return;
-
-      for (const edgeId of currentNode.relationships) {
-        const relationship = this.relationships.get(edgeId);
-        if (!relationship) continue;
-
-        const nextId = relationship.to;
-        if (visited.has(nextId)) continue;
-
-        visited.add(nextId);
-        currentPath.push(relationship);
-
-        dfs.call(this, nextId, targetId, currentPath, depth + 1);
-
-        currentPath.pop();
-        visited.delete(nextId);
-      }
-    }
-
-    dfs.call(this, fromId, toId, [], 0);
-    return paths;
-  }
-}
-```
-
-#### **ReBAC Policy Engine**
-
-```javascript
-class ReBACPolicyEngine {
-  constructor(graph) {
-    this.graph = graph;
-    this.policies = [];
-  }
-
-  addPolicy(policy) {
-    this.policies.push(policy);
-  }
-
-  checkAccess(userId, resourceId, action) {
-    const userNode = this.graph.nodes.get(userId);
-    const resourceNode = this.graph.nodes.get(resourceId);
-
-    if (!userNode || !resourceNode) {
-      return { allowed: false, reason: 'User or resource not found' };
-    }
-
-    for (const policy of this.policies) {
-      const result = this.evaluatePolicy(policy, userId, resourceId, action);
-      if (result.decision === 'allow') {
-        return { allowed: true, policy: policy.name, reason: result.reason };
-      } else if (result.decision === 'deny') {
-        return { allowed: false, policy: policy.name, reason: result.reason };
-      }
-    }
-
-    return { allowed: false, reason: 'No matching policies' };
-  }
-
-  evaluatePolicy(policy, userId, resourceId, action) {
-    for (const rule of policy.rules) {
-      if (rule.action && !rule.action.includes(action)) {
+        if (edge && edge.permissions.includes(action)) {
+          return { allowed: true, path: reconstructPath(visited) };
+        }
         continue;
       }
 
-      const result = this.evaluateRule(rule, userId, resourceId);
-      if (result.matched) {
-        return {
-          decision: rule.effect,
-          reason: result.reason
-        };
+      // Check outgoing edges from current node
+      const node = this.nodes.get(current.id);
+      if (node) {
+        for (const rel of node.relationships) {
+          const relationship = this.edges.get(`${current.id}:${rel.id}`);
+          if (relationship && !visited.has(rel.id)) {
+            queue.push({ id: rel.id, depth: current.depth + 1 });
+          }
+        }
       }
     }
 
-    return { decision: 'not_applicable' };
-  }
-
-  evaluateRule(rule, userId, resourceId) {
-    const paths = this.graph.findPaths(userId, resourceId, rule.maxDepth || 3);
-
-    for (const path of paths) {
-      if (this.matchesPattern(path, rule.relationships)) {
-        return {
-          matched: true,
-          reason: `Path matches pattern: ${path.map(r => r.type).join(' → ')}`
-        };
-      }
-    }
-
-    return { matched: false };
-  }
-
-  matchesPattern(path, pattern) {
-    if (path.length !== pattern.length) {
-      return false;
-    }
-
-    return path.every((relationship, index) => {
-      const patternItem = pattern[index];
-      if (Array.isArray(patternItem)) {
-        return patternItem.includes(relationship.type);
-      }
-      return relationship.type === patternItem;
-    });
+    // No path found
+    return { allowed: false };
   }
 }
 ```
 
-#### **ReBAC Policies**
+#### ReBAC Usage Example
 
 ```javascript
-// Example ReBAC policies
-const rebacPolicies = [
-  {
-    name: "Document Access Policy",
-    rules: [
-      {
-        name: "owner_access",
-        relationships: ["owns"],
-        action: ["read", "write", "delete", "share"],
-        effect: "allow"
-      },
-      {
-        name: "collaborator_access",
-        relationships: ["collaborates_on"],
-        action: ["read", "write"],
-        effect: "allow"
-      },
-      {
-        name: "team_member_access",
-        relationships: ["member_of", "has_access_to"],
-        action: ["read"],
-        effect: "allow"
-      },
-      {
-        name: "manager_access",
-        relationships: ["manages", "owns"],
-        action: ["read", "write"],
-        effect: "allow"
-      }
-    ]
-  },
-  {
-    name: "Project Resource Policy",
-    rules: [
-      {
-        name: "project_member_access",
-        relationships: ["member_of", "contains"],
-        action: ["read"],
-        effect: "allow"
-      },
-      {
-        name: "project_lead_access",
-        relationships: ["leads", "contains"],
-        action: ["read", "write", "manage"],
-        effect: "allow"
-      }
-    ]
-  }
-];
-```
+// Initialize ReBAC graph
+const graph = new ReBACGraph();
 
-#### **Usage Example**
-
-```javascript
-// Initialize ReBAC system
-const rebacGraph = new ReBACGraph();
-const rebacEngine = new ReBACPolicyEngine(rebacGraph);
-
-// Add nodes
-rebacGraph.addNode('user_1', 'user', { name: 'Alice', role: 'manager' });
-rebacGraph.addNode('user_2', 'user', { name: 'Bob', role: 'employee' });
-rebacGraph.addNode('doc_1', 'document', { title: 'Project Report' });
-rebacGraph.addNode('team_1', 'team', { name: 'Project Team' });
-rebacGraph.addNode('project_1', 'project', { name: 'Q1 Project' });
+// Add entities
+graph.addNode('user1', { type: 'user', name: 'John Doe' });
+graph.addNode('user2', { type: 'user', name: 'Jane Smith' });
+graph.addNode('doc1', { type: 'document', title: 'Project Report', owner: 'user1' });
+graph.addNode('doc2', { type: 'document', title: 'Company Policy', owner: 'user2' });
 
 // Add relationships
-rebacGraph.addRelationship('user_1', 'doc_1', 'owns');
-rebacGraph.addRelationship('user_1', 'user_2', 'manages');
-rebacGraph.addRelationship('user_2', 'team_1', 'member_of');
-rebacGraph.addRelationship('team_1', 'project_1', 'works_on');
-rebacGraph.addRelationship('project_1', 'doc_1', 'contains');
-rebacGraph.addRelationship('user_1', 'team_1', 'leads');
+graph.addEdge('user1', 'doc1', 'owns', ['read', 'write', 'delete']);
+graph.addEdge('user2', 'doc2', 'owns', ['read', 'write', 'delete']);
+graph.addEdge('user1', 'user2', 'friend', ['view']);
 
-// Add policies
-rebacPolicies.forEach(policy => rebacEngine.addPolicy(policy));
+// Authorization middleware
+async function checkReBACAccess(resourceId, action) {
+  return async (req, res, next) => {
+    const userId = req.user.id;
 
-// Check access
-console.log('Alice can read doc_1:',
-  rebacEngine.checkAccess('user_1', 'doc_1', 'read')); // true
-console.log('Bob can read doc_1:',
-  rebacEngine.checkAccess('user_2', 'doc_1', 'read')); // true (team member)
-console.log('Bob can delete doc_1:',
-  rebacEngine.checkAccess('user_2', 'doc_1', 'delete')); // false
+    // Check if user can access resource through relationships
+    const result = await graph.checkAccess(userId, resourceId, action);
+
+    if (!result.allowed) {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'You do not have permission to access this resource',
+        reason: 'No valid relationship path found'
+      });
+    }
+
+    next();
+  };
+}
+
+// Protect route
+app.get('/api/documents/:id',
+  authenticateUser,
+  checkReBACAccess(req.params.id, 'read'),
+  async (req, res) => {
+    const document = await documentService.getDocument(req.params.id);
+    res.json({ document });
+  }
+);
 ```
 
 ### ReBAC Use Cases
 
-| Use Case | Why ReBAC |
-|----------|-----------|
-| **Social Media** | Follow relationships, content sharing |
-| **Collaboration Tools** | Project teams, document access |
-| **Healthcare** | Doctor-patient relationships |
-| **Enterprise Systems** | Organizational hierarchies |
-| **IoT Networks** | Device relationships and permissions |
+| Scenario | Description | Pattern |
+|---------|-------------|----------|
+| **Social Media** | Friends see friends' posts | Friend-of relationship |
+| **Document Sharing** | Collaborators access shared docs | Member-of relationship |
+| **File Systems** | Users see files in folders they own | Ownership hierarchy |
+| **Organizational** | Managers access subordinate data | Reports-to relationship |
 
 ---
 
-## Authorization Method Comparison
+## DAC (Discretionary Access Control)
 
-### Comprehensive Comparison Matrix
+### What is DAC?
 
-| Aspect | RBAC | ABAC | DAC | MAC | PBAC | ReBAC |
-|--------|------|------|-----|-----|------|-------|
-| **Flexibility** | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **Simplicity** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| **Scalability** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **Granularity** | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Context-Aware** | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
-| **Performance** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| **Admin Overhead** | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| **Regulatory Compliance** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+**DAC (Discretionary Access Control)**: Authorization model where the owner (creator) of a resource decides who can access it.
 
-### Decision Guide
+**📌 Think of it like**: Your personal diary - you decide who can read each page, regardless of their official roles or positions.
 
-#### **When to Use Each Method**
+### DAC Components
 
-| Scenario | Recommended Method | Reason |
-|----------|-------------------|--------|
-| **Small Business App** | RBAC | Simple, easy to manage |
-| **Enterprise SaaS** | ABAC | Flexible, fine-grained control |
-| **File Sharing System** | DAC | User-controlled access |
-| **Military/Government** | MAC | Security classification required |
-| **Healthcare** | PBAC + ReBAC | Complex policies + relationships |
-| **Social Network** | ReBAC | Relationship-based permissions |
-| **Financial Services** | ABAC + RBAC | Compliance + operational needs |
+| Component | Description | Examples |
+|-----------|-------------|---------|
+| **Resource Owner** | Creator of the resource | File creator, document author |
+| **Access List** | List of users/roles with access | Share permissions, edit rights |
+| **Inheritance** | Permission inheritance | Folder permissions apply to contents |
 
-### Hybrid Approaches
-
-#### **RBAC + ABAC Combination**
+### DAC Implementation
 
 ```javascript
-// Hybrid authorization combining roles and attributes
-class HybridAuthorization {
-  constructor() {
-    this.rbac = new RBACSystem();
-    this.abac = new ABACPolicyEngine();
+// DAC Authorization System
+class DACController {
+  async setResourceAccess(resourceId, owner, permissions) {
+    return await db.query(`
+      INSERT INTO resource_permissions
+      (resource_id, user_id, permission, granted_by, granted_at)
+      VALUES (?, ?, ?, ?, ?)
+    `, [resourceId, owner.id, permissions.join(','), owner.id, new Date()]);
   }
 
-  checkAccess(userId, resourceId, action, context = {}) {
-    // First check RBAC
-    const rbacResult = this.rbac.checkAccess(userId, action);
+  async checkAccess(userId, resourceId, action) {
+    // First check if user is owner
+    const owner = await db.query(`
+      SELECT user_id FROM resources WHERE id = ? AND user_id = ?
+    `, [resourceId, userId]);
 
-    if (rbacResult.denied) {
-      return { allowed: false, reason: "RBAC deny" };
+    if (owner.length > 0) {
+      return { allowed: true, reason: 'Resource owner' };
     }
 
-    // Then check ABAC for additional constraints
-    const abacRequest = {
-      subject: { id: userId, ...context.subject },
-      resource: { id: resourceId, ...context.resource },
-      action,
-      environment: context.environment || {}
-    };
+    // Check explicit permissions
+    const permissions = await db.query(`
+      SELECT permission FROM resource_permissions
+      WHERE resource_id = ? AND user_id = ?
+    `, [resourceId, userId]);
 
-    const abacResult = this.abac.evaluate(abacRequest);
-
+    const userPermissions = permissions.map(p => p.permission);
     return {
-      allowed: abacResult.allowed && rbacResult.allowed,
-      rbac: rbacResult,
-      abac: abacResult
+      allowed: userPermissions.includes(action),
+      reason: userPermissions.length > 0 ? 'Explicit permission granted' : 'No permission found'
     };
   }
 }
 ```
 
-#### **Policy Evaluation Order**
+#### DAC Usage Example
 
-1. **MAC** (Mandatory rules, cannot be overridden)
-2. **RBAC** (Basic role permissions)
-3. **ABAC** (Fine-grained attribute-based rules)
-4. **DAC** (Owner discretion)
-5. **ReBAC** (Relationship-based permissions)
+```javascript
+// File sharing system
+const fileSystem = new DACController();
+
+// User uploads file (automatically becomes owner)
+app.post('/api/files',
+  authenticateUser,
+  uploadMiddleware,
+  async (req, res) => {
+    const file = await fileService.saveFile(req.file);
+
+    // Automatically set owner permissions
+    await fileSystem.setResourceAccess(file.id, req.user, ['read', 'write', 'share']);
+
+    res.json({ file });
+  }
+);
+
+// User shares file with another user
+app.post('/api/files/:id/share',
+  authenticateUser,
+  async (req, res) => {
+    const { targetUserId, permissions } = req.body;
+
+    await fileSystem.setResourceAccess(req.params.id, req.user, permissions, targetUserId);
+
+    res.json({ success: true, message: 'File shared successfully' });
+  }
+);
+
+// Check file access
+app.get('/api/files/:id',
+  authenticateUser,
+  async (req, res) => {
+    const result = await fileSystem.checkAccess(req.user.id, req.params.id, 'read');
+
+    if (!result.allowed) {
+      return res.status(403).json({
+        error: 'Access denied',
+        reason: result.reason
+      });
+    }
+
+    const file = await fileService.getFile(req.params.id);
+    res.json({ file });
+  }
+);
+```
+
+---
+
+## MAC (Mandatory Access Control)
+
+### What is MAC?
+
+**MAC (Mandatory Access Control)**: Authorization model where access decisions are based on security labels and clearances assigned to both users and resources.
+
+**📌 Think of it like**: Government security system - both the person and the document have security classifications, and access is only granted if the person's clearance meets or exceeds the document's classification.
+
+### MAC Components
+
+| Component | Description | Examples |
+|-----------|-------------|---------|
+| **Security Levels** | Hierarchical classifications | Confidential, Secret, Top Secret |
+| **Clearances** | User's authorized level | Secret, Top Secret, Cosmic |
+| **Categories** | Type of information | Nuclear, Financial, Personnel |
+| **Access Rules** | Strict security policies | "Need-to-know" principle |
+
+### MAC Implementation
+
+```javascript
+// MAC Authorization System
+class MACController {
+  constructor() {
+    this.securityLevels = [
+      { level: 1, name: 'Unclassified' },
+      { level: 2, name: 'Confidential' },
+      { level: 3, name: 'Secret' },
+      { level: 4, name: 'Top Secret' }
+    ];
+  }
+
+  async checkAccess(userId, resourceId, action) {
+    // Get user clearance
+    const user = await userService.getUser(userId);
+    const userClearance = user.clearance.level;
+
+    // Get resource classification
+    const resource = await resourceService.getResource(resourceId);
+    const resourceClassification = resource.classification.level;
+
+    // Apply MAC rule: User clearance >= Resource classification
+    if (userClearance >= resourceClassification) {
+      // Check specific action permissions
+      const actionPermissions = this.getActionPermissions(action);
+      if (userClearance >= actionPermissions.requiredLevel) {
+        return { allowed: true, reason: 'Clearance sufficient' };
+      }
+    }
+
+    return {
+      allowed: false,
+      reason: 'Insufficient clearance level',
+      required: resourceClassification,
+      current: userClearance
+    };
+  }
+}
+```
+
+#### MAC Usage Example
+
+```javascript
+// Document classification system
+const macController = new MACController();
+
+// Middleware to check MAC access
+async function checkMACAuthorization(action) {
+  return async (req, res, next) => {
+    const result = await macController.checkAccess(req.user.id, req.params.id, action);
+
+    if (!result.allowed) {
+      return res.status(403).json({
+        error: 'Access denied',
+        reason: result.reason,
+        currentClearance: result.current,
+        requiredClearance: result.required
+      });
+    }
+
+    // Log access attempt for audit
+    await auditService.logAccessAttempt({
+      userId: req.user.id,
+      resourceId: req.params.id,
+      action,
+      allowed: true,
+      timestamp: new Date()
+    });
+
+    next();
+  };
+}
+
+// Protect classified documents
+app.get('/api/classified/:id',
+  authenticateUser,
+  checkMACAuthorization('read'),
+  async (req, res) => {
+    const document = await classifiedService.getDocument(req.params.id);
+    res.json({ document });
+  }
+);
+```
+
+---
+
+## PBAC (Policy-Based Access Control)
+
+### What is PBAC?
+
+**PBAC (Policy-Based Access Control)**: Authorization model where access decisions are made by evaluating policies against a set of attributes.
+
+**📌 Think of it like**: A smart home system where you can set rules like "No guests after 10 PM" or "Children cannot access parental controls" - the system evaluates these rules for each access request.
+
+### PBAC Implementation
+
+```javascript
+// PBAC Policy Engine
+class PBACEngine {
+  constructor() {
+    this.policies = [];
+  }
+
+  // Add policy
+  addPolicy(name, condition, action) {
+    this.policies.push({ name, condition, action });
+  }
+
+  // Evaluate all policies
+  async evaluate(context) {
+    const results = [];
+
+    for (const policy of this.policies) {
+      try {
+        const conditionMet = this.evaluateCondition(policy.condition, context);
+        results.push({
+          policy: policy.name,
+          condition: policy.condition,
+          met: conditionMet,
+          action: conditionMet ? policy.action : 'none'
+        });
+      } catch (error) {
+        console.error(`Policy evaluation error for ${policy.name}:`, error);
+      }
+    }
+
+    return { results, context };
+  }
+
+  evaluateCondition(condition, context) {
+    // Simple condition parser
+    // In production, use a proper expression parser
+    try {
+      return eval(condition.replace(/\$(\w+)/g, (match, key) => {
+        return `context.${key}`;
+      }));
+    } catch (error) {
+      return false;
+    }
+  }
+}
+```
+
+#### PBAC Usage Example
+
+```javascript
+// Initialize PBAC engine
+const pbac = new PBACEngine();
+
+// Define policies
+pbac.addPolicy(
+  'business_hours_only',
+  'context.time.hours >= 9 && context.time.hours <= 17',
+  'allow'
+);
+
+pbac.addPolicy(
+  'no_weekend_access',
+  'context.time.dayOfWeek === 6 || context.time.dayOfWeek === 0',
+  'deny'
+);
+
+pbac.addPolicy(
+  'ip_restriction',
+  'context.location.ip !== "external_ip"',
+  'deny'
+);
+
+// PBAC authorization middleware
+async function checkPBACAuthorization(action) {
+  return async (req, res, next) => {
+    const context = {
+      user: req.user,
+      resource: req.params,
+      time: new Date(),
+      location: { ip: req.ip, country: getCountryCode(req.ip) }
+    };
+
+    const results = await pbac.evaluate(context);
+
+    // Check if any deny policies apply
+    const denyPolicies = results.filter(r => r.action === 'deny' && r.met);
+    if (denyPolicies.length > 0) {
+      return res.status(403).json({
+        error: 'Access denied by policy',
+        policies: denyPolicies.map(p => p.policy)
+      });
+    }
+
+    // Check if any allow policies apply
+    const allowPolicies = results.filter(r => r.action === 'allow' && r.met);
+    if (allowPolicies.length > 0) {
+      next(); // Allow access
+    } else {
+      // Default deny if no policies apply
+      return res.status(403).json({
+        error: 'Access denied',
+        reason: 'No applicable policies allow access'
+      });
+    }
+  };
+}
+```
+
+---
+
+## Choosing the Right Authorization Model
+
+### Decision Framework
+
+```mermaid
+graph TD
+    A[What's Your Use Case?] --> B{Static Roles?}
+    B -->|Yes| C{Complex Rules?}
+    B -->|No| D{Ownership-Based?}
+    C -->|Yes| E[ABAC]
+    C -->|No| F[RBAC]
+    D -->|Yes| G[MAC/PBAC]
+    D -->|No| H[RBAC + Simple]
+```
+
+### Comparison Matrix
+
+| Model | Complexity | Flexibility | Scalability | Best For |
+|------|------------|-------------|-------------|----------|
+| **RBAC** | Low | Medium | Medium | Standard applications |
+| **ABAC** | Very High | Very High | High | Complex security systems |
+| **ReBAC** | Medium | High | Medium | Social/collaboration apps |
+| **DAC** | Low | High | Low | User-generated content |
+| **MAC** | Medium | Low | High | Government/military |
+| **PBAC** | High | Very High | Medium | Dynamic rule-based systems |
+
+### Implementation Recommendations
+
+#### For Standard Business Applications
+**Choose RBAC** if:
+- Well-defined user roles
+- Simple permission structure
+- Centralized management needed
+- Standard CRUD operations
+
+#### For Social/Collaboration Platforms
+**Choose ReBAC** if:
+- User relationships drive access
+- Dynamic connections between users
+- Social features needed
+- Collaborative work environment
+
+#### For High-Security Systems
+**Choose MAC** if:
+- Government/regulatory compliance
+- Strict security classifications
+- "Need-to-know" principle
+- Multiple clearance levels
+
+#### For Complex/Rule-Based Systems
+**Choose ABAC** if:
+- Multiple attributes affect access
+- Complex business rules
+- Dynamic authorization required
+- Fine-grained control needed
+
+#### For User-Generated Content
+**Choose DAC** if:
+- Users own and control their content
+- Sharing permissions needed
+- Content management system
+- File sharing features
+
+---
+
+## Hybrid Authorization Models
+
+### RBAC + ABAC
+
+**Description**: Use RBAC for basic role permissions, then use ABAC for additional contextual rules.
+
+**Use Case**: E-commerce system where users have roles, but additional rules based on order value, location, etc.
+
+```javascript
+// Check RBAC first
+if (!hasRolePermission(user, resource, action)) {
+  return false;
+}
+
+// Then check ABAC policies
+return abacEngine.evaluate({
+  user: user,
+  resource: resource,
+  action: action,
+  context: {
+    time: new Date(),
+    location: req.ip,
+    device: req.headers['user-agent']
+  }
+});
+```
+
+### RBAC + ReBAC
+
+**Description**: Use RBAC for organizational roles, and ReBAC for collaborative relationships.
+
+**Use Case**: Enterprise document management with departments and sharing features.
+
+---
+
+## Best Practices for Authorization
+
+### Security Principles
+
+1. **Principle of Least Privilege**: Users should have only the permissions they absolutely need
+2. **Separation of Concerns**: Authorization should be decoupled from business logic
+3. **Audit Logging**: Log all authorization decisions for compliance and debugging
+4. **Time-based Access**: Implement session timeouts and token expiration
+5. **Attribute-based Validation**: Validate all input attributes before making decisions
+
+### Implementation Checklist
+
+| Practice | Why Important | Implementation |
+|----------|----------------|----------------|
+| **Centralized Auth** | Consistent enforcement | Single authorization service |
+| **Caching** | Performance improvement | Cache permission results |
+| **Rate Limiting** | Prevent abuse | Limit authorization checks |
+| **Input Validation** | Prevent injection attacks | Sanitize all inputs |
+| **Error Handling** | Good UX | Consistent error responses |
+| **Testing** | Ensure correctness | Unit test all policies |
+
+### Common Anti-Patterns
+
+| Anti-Pattern | Problem | Solution |
+|-------------|--------|----------|
+| **Role Explosion** | Too many roles to manage | Combine similar roles |
+| **Overly Complex Rules** | Difficult to maintain | Simplify where possible |
+| **Implicit Permissions** | Unclear access rights | Make permissions explicit |
+| **No Audit Trail** | Security and compliance risk | Log all auth decisions |
+| **Hard-coded Policies** | Inflexible and error-prone | Externalize policies |
 
 ---
 
 ## Interview Questions
 
-### **Q1: What is the difference between Authentication and Authorization?**
-**Answer:**
-- **Authentication**: Verifying who you are (identity verification)
-- **Authorization**: Determining what you can do (permission checking)
-- **Example**: Authentication = showing your ID card, Authorization = checking if your ID allows access to a specific room
+### Basic Questions
 
-### **Q2: When would you choose RBAC over ABAC?**
-**Answer:**
-**Choose RBAC when:**
-- Simple, predictable access patterns
-- Clear job roles and responsibilities
-- Limited number of user roles
-- Easy administration is priority
-- Regulatory compliance with role-based access
+1. **What's the difference between authentication and authorization?**
+   - Authentication: Who you are (identity verification)
+   - Authorization: What you can do (permission checking)
+   - Example: Authentication = showing driver's license, Authorization = checking if license allows driving a truck
 
-**Choose ABAC when:**
-- Complex, dynamic access requirements
-- Fine-grained permissions needed
-- Context-aware decisions required
-- Large number of user combinations
-- Dynamic policy changes needed
+2. **What is RBAC and when would you use it?**
+   - Role-Based Access Control
+   - Use when users have clear job functions (admin, manager, user)
+   - Good for standard business applications
 
-### **Q3: What are the main challenges of implementing MAC?**
-**Answer:**
-**Challenges:**
-- **Complexity**: Requires security classification system
-- **Administration**: Overhead of managing clearances and labels
-- **Performance**: Complex rule evaluation
-- **Flexibility**: Rigid rules, hard to adapt to changing needs
-- **User Experience**: Complex permission denials
-- **Implementation**: Need specialized security expertise
+3. **How do you implement RBAC in APIs?**
+   - Create users, roles, and permissions tables
+   - Map roles to permissions
+   - Assign users to roles
+   - Check permissions in middleware before allowing access
 
-### **Q4: How does ReBAC differ from traditional access control models?**
-**Answer:**
-**ReBAC Key Differences:**
-- **Relationship-based**: Uses entity relationships instead of roles/attributes
-- **Path-based**: Evaluates access through relationship paths
-- **Dynamic**: Automatically inherits permissions through relationships
-- **Natural fit**: Maps well to real-world organizational structures
-- **Graph-based**: Uses graph algorithms for permission evaluation
+### Intermediate Questions
 
-### **Q5: What are the advantages of PBAC over other models?**
-**Answer:**
-**PBAC Advantages:**
-- **Expressiveness**: Can express complex business rules
-- **Explicit policies**: Clear, auditable policy definitions
-- **Obligations**: Can trigger actions alongside decisions
-- **Flexibility**: Supports complex rule combinations
-- **Compliance**: Excellent for regulatory requirements
-- **Traceability**: Detailed audit trails and decision reasoning
+4. **What is ABAC and how does it differ from RBAC?**
+   - Attribute-Based Access Control vs Role-Based
+   - ABAC uses dynamic attributes, RBAC uses static roles
+   - ABAC more flexible but complex to implement
+   - Use ABAC for complex, rule-based systems
 
-### **Q6: How would you implement a hybrid authorization system?**
-**Answer:**
-```javascript
-// Implementation approach:
-1. Layer multiple models with evaluation order
-2. Start with mandatory controls (MAC)
-3. Apply role-based permissions (RBAC)
-4. Add attribute-based constraints (ABAC)
-5. Consider relationship-based access (ReBAC)
-6. Allow user discretion where appropriate (DAC)
+5. **What is ReBAC and when would you use it?**
+   - Relationship-Based Access Control
+   - Use when access depends on user relationships
+   - Good for social networks and collaborative apps
+   - Determines access based on connections between users
 
-// Benefits:
-- Defense in depth
-- Flexible policy combination
-- Compliance with multiple requirements
-- Granular control where needed
+6. **What's the difference between MAC and DAC?**
+   - MAC: Mandatory Access Control (system-controlled)
+   - DAC: Discretionary Access Control (user-controlled)
+   - MAC used in high-security environments
+   - DAC used when resource owners decide access
+
+### Advanced Questions
+
+7. **How would you implement a hybrid RBAC+ABAC system?**
+   - Use RBAC for basic role permissions
+   - Add ABAC for contextual rules (time, location, etc.)
+   - Evaluate RBAC first, then ABAC policies
+   - Combine results with AND/OR logic
+
+8. **What are common security pitfalls in authorization systems?**
+   - Over-privileged users (privilege escalation)
+   - Missing authorization checks
+   - Insecure policy evaluation
+   - Lack of audit logging
+   - Hard-coded permissions in code
+
+9. **How would you design authorization for a microservices architecture?**
+   - Centralized authorization service
+   - Distributed policy evaluation
+   - Cached permissions for performance
+   - Service-to-service authentication
+   - Event-driven authorization updates
+
+---
+
+## Summary
+
+### Key Takeaways
+
+1. **RBAC**: Most common, good for standard role-based permissions
+2. **ABAC**: Most flexible, handles complex rule-based systems
+3. **ReBAC**: Relationship-based, perfect for social/collaborative apps
+4. **DAC**: User-controlled, ideal for content management systems
+5. **MAC**: High-security, used in government/military systems
+6. **PBAC**: Policy-driven, good for dynamic rule systems
+
+### Best Practices Checklist
+
+- [ ] Implement least privilege principle
+- [ ] Centralized authorization service
+- [ ] Comprehensive audit logging
+- [ ] Input validation and sanitization
+- [ ] Regular permission reviews
+- [ ] Test authorization thoroughly
+- [ ] Handle authorization failures gracefully
+- [ ] Document authorization model clearly
+- [ ] Use caching for performance
+- [ ] Implement rate limiting
+
+### Decision Framework
+
+```mermaid
+graph TD
+    A[Simple App?] -->|Yes| B[RBAC]
+    A -->|No| C[Social App?] -->|Yes| D[ReBAC]
+    C -->|No| E[Complex Rules?] -->|Yes| F[ABAC]
+    E -->|No| G[Standard Roles] -->|Yes| H[RBAC]
+    E -->|No| I[High Security?] -->|Yes| J[MAC]
+    I -->|No| K[User-Generated Content?] -->|Yes| L[DAC]
+    I -->|No| M[Dynamic Policies?] -->|Yes| N[PBAC]
+    M -->|No| O[RBAC + Simple]
 ```
 
-### **Q7: What are the performance considerations for different authorization models?**
-**Answer:**
-**Performance by Model:**
-- **RBAC**: Fast - simple role lookup
-- **ABAC**: Slower - complex rule evaluation
-- **DAC**: Medium - permission lookup + ownership check
-- **MAC**: Fast-Medium - classification comparison
-- **PBAC**: Slowest - complex policy evaluation
-- **ReBAC**: Variable - depends on path finding complexity
-
-**Optimization Strategies:**
-- Cache frequent access decisions
-- Pre-compute permission sets
-- Use efficient data structures
-- Implement decision caching
-- Optimize rule evaluation order
-
----
-
-## Quick Tips & Best Practices
-
-### **Authorization Design**
-✅ Start simple, add complexity as needed
-✅ Use principle of least privilege
-✅ Implement regular permission audits
-✅ Document access control policies
-✅ Plan for scalability from the start
-
-### **RBAC Implementation**
-✅ Keep number of roles manageable
-✅ Use role hierarchies for inheritance
-✅ Regular review of role assignments
-✅ Separate duties for security
-✅ Implement role expiration policies
-
-### **ABAC/PBAC Implementation**
-✅ Design clear policy language
-✅ Implement efficient rule evaluation
-✅ Cache frequent decisions
-✅ Monitor policy performance
-✅ Test edge cases thoroughly
-
-### **Security Considerations**
-✅ Log all authorization decisions
-✅ Implement access request auditing
-✅ Regular security reviews
-✅ Separate authentication and authorization
-✅ Fail securely (deny on uncertainty)
-
----
-
-## Chapter Summary
-
-Chapter 5 explores comprehensive authorization methods for controlling API access:
-
-### **Authorization Models Overview**
-
-| Model | Best For | Key Characteristics |
-|-------|----------|-------------------|
-| **RBAC** | Traditional enterprise apps | Role-based, simple, scalable |
-| **ABAC** | Complex, dynamic environments | Attribute-based, flexible, context-aware |
-| **DAC** | User-controlled resources | Owner discretion, fine-grained |
-| **MAC** | High-security environments | Classification-based, mandatory |
-| **PBAC** | Complex business rules | Policy-based, explicit, auditable |
-| **ReBAC** | Relationship-centric systems | Graph-based, dynamic, natural |
-
-### **Key Concepts**
-
-- **Access Control Matrix**: Subject-Object-Action relationships
-- **Security Labels**: Classification and clearance systems
-- **Policy Evaluation**: Rule-based decision making
-- **Relationship Graphs**: Entity connections and paths
-- **Hybrid Approaches**: Combining multiple models
-
-### **Implementation Considerations**
-
-- **Performance**: Evaluation speed and caching strategies
-- **Scalability**: Managing users, roles, and policies at scale
-- **Auditing**: Tracking access decisions and compliance
-- **Maintenance**: Ongoing administration and updates
-- **Flexibility**: Adapting to changing business requirements
-
-Choose the authorization model that best fits your application's security requirements, complexity needs, and operational constraints. Hybrid approaches often provide the best balance of security and usability.
+**Next Up**: Chapter 06 explores API Documentation Tools, covering how to create and maintain comprehensive API documentation that developers love to use.

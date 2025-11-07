@@ -1,444 +1,235 @@
-# Chapter 4: Authentication Methods
+# Chapter 04: Authentication Methods
 
-## Basic Auth
+## Introduction
 
-### What is Basic Authentication?
+**📌 Authentication**: The process of verifying who someone is. Think of it like showing your ID card - it proves you are who you claim to be.
 
-Simplest authentication method where credentials are sent as Base64-encoded string in HTTP headers.
+**📌 Authorization**: The process of verifying what someone is allowed to do. Think of it like having a keycard that opens specific doors.
 
-### Basic Auth Flow
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Server
-
-    Client->>Server: Request without auth
-    Server->>Client: 401 Unauthorized + WWW-Authenticate header
-    Client->>Server: Request with Authorization header
-    Server->>Client: 200 OK + Resource
-```
-
-### Basic Auth Request
-
-```http
-GET /api/users HTTP/1.1
-Host: example.com
-Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=
-```
-
-### Encoding Process
-
-```javascript
-// Credentials: username:password
-const credentials = "username:password";
-const encoded = btoa(credentials); // Base64 encode
-// Result: "dXNlcm5hbWU6cGFzc3dvcmQ="
-```
-
-### Server Implementation
-
-```javascript
-// Express.js Basic Auth Middleware
-const basicAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="API"');
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  try {
-    const credentials = Buffer.from(
-      authHeader.split(' ')[1],
-      'base64'
-    ).toString('ascii');
-
-    const [username, password] = credentials.split(':');
-
-    // Validate credentials
-    if (!validateUser(username, password)) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    req.user = { username };
-    next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid authentication format' });
-  }
-};
-```
-
-### Basic Auth Advantages
-
-| Advantage | Description |
-|-----------|-------------|
-| **Simple** | Easy to implement and understand |
-| **Standard** | HTTP standard, built-in browser support |
-| **Universal** | Works with any HTTP client |
-| **No Server State** | Stateless, easy to scale |
-
-### Basic Auth Disadvantages
-
-| Disadvantage | Description |
-|--------------|-------------|
-| **Insecure** | Credentials sent with every request |
-| **Plain Text** | Base64 is encoding, not encryption |
-| **No Logout** | Credentials cached by browser |
-| **Limited Control** | Fine-grained access control difficult |
-
-### When to Use Basic Auth
-
-| Use Case | Why Basic Auth Works |
-|----------|---------------------|
-| **Internal APIs** | Controlled environment |
-| **Simple services** | Minimal security needs |
-| **Testing/Development** | Quick implementation |
-| **Machine-to-machine** | Automated scripts |
+This chapter covers different ways to prove user identity in APIs.
 
 ---
 
-## Token Based Authentication
+## Basic Authentication
 
-### What is Token-Based Auth?
+### What is Basic Authentication?
 
-Authentication method where server issues a token after initial login, and client includes this token in subsequent requests.
+**Basic Auth**: The simplest authentication method where credentials are sent as a Base64-encoded string in HTTP headers.
+
+**📌 Think of it like this**: Writing your username and password on a postcard and sending it through the mail - it works, but it's not very secure.
+
+### How Basic Auth Works
+
+```mermaid
+sequenceDiagram
+    participant Client as Client App
+    participant Server as API Server
+
+    Client->>Server: Request without credentials
+    Server->>Client: 401 Unauthorized + "Please authenticate"
+    Client->>Server: Request with Authorization header
+    Server->>Client: 200 OK + Requested data
+```
+
+### Basic Auth Request Format
+
+```http
+GET /api/users HTTP/1.1
+Host: api.example.com
+Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=
+```
+
+**Encoding Process:**
+- Original: `username:password`
+- Base64 encoded: `dXNlcm5hbWU6cGFzc3dvcmQ=`
+- **Important**: This is encoding, NOT encryption!
+
+### When to Use Basic Auth
+
+✅ **Good for:**
+- Internal APIs
+- Development and testing
+- Simple server-to-server communication
+- When combined with HTTPS
+
+❌ **Avoid for:**
+- Production public APIs
+- Mobile applications
+- Sensitive data access
+- When credentials need to be shared
+
+### Security Considerations
+
+| Issue | Risk | Solution |
+|-------|------|----------|
+| **Plain credentials** | High | Always use HTTPS |
+| **Base64 decoding** | Easy to decode | Never rely on Basic Auth alone |
+| **No logout** | Credentials stay in browser | Use other methods for web apps |
+| **Password storage** | Must be hashed | Use secure password hashing |
+
+---
+
+## Token-Based Authentication
+
+### What are Tokens?
+
+**Token**: A piece of data that acts like a digital key. Once you get a token, you use it for subsequent requests instead of sending your password every time.
+
+**📌 Think of it like**: A wristband at a theme park - you show your ticket once, get the wristband, then just show the wristband for rides.
 
 ### Token Authentication Flow
 
 ```mermaid
-flowchart TD
-    A[Client] -->|1. Login with credentials| B[Server]
-    B -->|2. Validate credentials| C[Database]
-    C -->|3. User valid| B
-    B -->|4. Generate token| A
-    A -->|5. Store token locally| A
-    A -->|6. Request with token| D[API Endpoint]
-    D -->|7. Validate token| B
-    B -->|8. Token valid| D
-    D -->|9. Return resource| A
+sequenceDiagram
+    participant Client as Client App
+    participant Server as API Server
+    participant Auth as Auth Service
+
+    Client->>Auth: 1. Login with username/password
+    Auth->>Client: 2. Return access token
+    Client->>Server: 3. Request with token in header
+    Server->>Client: 4. Validate token, return data
 ```
 
-### Token Generation and Storage
+### Common Token Types
 
-#### **Login Endpoint**
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **Opaque Tokens** | Random strings stored on server | Simple implementations |
+| **JWT (JSON Web Tokens)** | Self-contained tokens with claims | Modern web/mobile apps |
+| **Reference Tokens** | Token ID stored, data looked up | Security-focused apps |
 
+### JWT (JSON Web Tokens) Explained
+
+**JWT**: A self-contained token with three parts separated by dots:
+`header.payload.signature`
+
+**Structure:**
 ```javascript
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  // Validate credentials
-  const user = await validateCredentials(username, password);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  // Generate token
-  const token = generateToken(user);
-
-  // Store token (optional)
-  await storeToken(token, user.id);
-
-  res.json({
-    token,
-    user: { id: user.id, username: user.username }
-  });
-});
-```
-
-#### **Token Validation Middleware**
-
-```javascript
-const authenticateToken = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  try {
-    // Validate token
-    const user = await validateToken(token);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    res.status(403).json({ error: 'Invalid token format' });
-  }
-};
-```
-
-#### **Simple Token Implementation**
-
-```javascript
-const crypto = require('crypto');
-const tokens = new Map(); // In production, use Redis/database
-
-function generateToken(user) {
-  const token = crypto.randomBytes(32).toString('hex');
-  const tokenData = {
-    userId: user.id,
-    createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-  };
-
-  tokens.set(token, tokenData);
-  return token;
-}
-
-async function validateToken(token) {
-  const tokenData = tokens.get(token);
-
-  if (!tokenData || tokenData.expiresAt < new Date()) {
-    tokens.delete(token);
-    return null;
-  }
-
-  const user = await getUserById(tokenData.userId);
-  return user;
-}
-```
-
-### Token Storage Options
-
-| Method | Pros | Cons | Use Case |
-|--------|------|------|----------|
-| **Database** | Persistent, queryable | Performance overhead | Small applications |
-| **Redis** | Fast, TTL support | Memory usage | High-performance APIs |
-| **JWT** | Self-contained, no storage | Larger tokens | Distributed systems |
-| **Memory** | Fastest | Not scalable, no persistence | Development/testing |
-
-### Token Management
-
-#### **Logout Endpoint**
-
-```javascript
-app.post('/api/auth/logout', authenticateToken, async (req, res) => {
-  const token = req.headers.authorization.split(' ')[1];
-  await invalidateToken(token);
-  res.json({ message: 'Logged out successfully' });
-});
-```
-
-#### **Token Refresh**
-
-```javascript
-app.post('/api/auth/refresh', async (req, res) => {
-  const { refreshToken } = req.body;
-
-  // Validate refresh token
-  const tokenData = await validateRefreshToken(refreshToken);
-  if (!tokenData) {
-    return res.status(401).json({ error: 'Invalid refresh token' });
-  }
-
-  // Generate new access token
-  const newToken = generateToken(tokenData.user);
-
-  res.json({ token: newToken });
-});
-```
-
----
-
-## JWT (JSON Web Tokens)
-
-### What is JWT?
-
-Self-contained token format that contains user information and claims, digitally signed for verification.
-
-### JWT Structure
-
-```
-Header.Payload.Signature
-```
-
-#### **Example JWT**
-
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-```
-
-#### **Decoded Structure**
-
-```json
-// Header
+// Header (algorithm and token type)
 {
   "alg": "HS256",
   "typ": "JWT"
 }
 
-// Payload
+// Payload (data/claims)
 {
   "sub": "1234567890",
   "name": "John Doe",
-  "iat": 1516239022
+  "exp": 1640995200
 }
 
-// Signature (not shown - cryptographic hash)
+// Signature (verification)
+HMACSHA256(
+  base64UrlEncode(header) + "." +
+  base64UrlEncode(payload),
+  your-256-bit-secret
+)
 ```
 
-### JWT Components
+### JWT Implementation Example
 
-#### **Header**
+**Login Request:**
+```http
+POST /api/auth/login HTTP/1.1
+Content-Type: application/json
 
+{
+  "email": "user@example.com",
+  "password": "userpassword123"
+}
+```
+
+**Token Response:**
 ```json
 {
-  "alg": "HS256",    // Algorithm (HS256, RS256, ES256)
-  "typ": "JWT",      // Token type
-  "kid": "key123"    // Key ID (for multiple keys)
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "def5020012345678...",
+  "tokenType": "Bearer",
+  "expiresIn": 3600
 }
 ```
 
-#### **Payload (Claims)**
-
-| Claim Type | Description | Example |
-|------------|-------------|---------|
-| **Registered** | Standard claims | `sub`, `iss`, `aud`, `exp`, `iat` |
-| **Public** | Custom but standardized | `name`, `email` |
-| **Private** | Application-specific | `role`, `permissions` |
-
-```json
-{
-  "sub": "1234567890",           // Subject (user ID)
-  "iss": "https://api.example.com", // Issuer
-  "aud": "https://client.example.com", // Audience
-  "exp": 1516239022,             // Expiration
-  "iat": 1516239022,             // Issued at
-  "nbf": 1516239022,             // Not before
-  "jti": "abc123",               // JWT ID
-  "name": "John Doe",            // User name
-  "email": "john@example.com",   // User email
-  "role": "user",                // User role
-  "permissions": ["read", "write"] // Permissions
-}
+**API Request with Token:**
+```http
+GET /api/users/profile HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### JWT Algorithms
+### Token Storage Best Practices
 
-#### **HS256 (HMAC with SHA-256)**
-- **Type**: Symmetric
-- **Usage**: Same secret for signing and verification
-- **Best for**: Single server applications
+| Location | Security | Pros | Cons |
+|----------|----------|------|------|
+| **HTTP-Only Cookies** | High | Protected from XSS | CSRF protection needed |
+| **LocalStorage** | Low | Easy to access | Vulnerable to XSS |
+| **SessionStorage** | Low | Per-tab storage | Vulnerable to XSS |
+| **Memory** | High | Most secure | Lost on refresh |
+
+---
+
+## Session-Based Authentication
+
+### What are Sessions?
+
+**Session-Based Auth**: Server creates a session for each user after login and gives the client a session ID (usually in a cookie).
+
+**📌 Think of it like**: Getting a locker key at the gym. You show your ID once, get a key, and use that key to access your locker.
+
+### Session Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant Client as Browser
+    participant Server as Web Server
+    participant Database as Session Store
+
+    Client->>Server: 1. Login with credentials
+    Server->>Database: 2. Create session
+    Database->>Server: 3. Return session ID
+    Server->>Client: 4. Set session cookie
+    Client->>Server: 5. Request with session cookie
+    Server->>Database: 6. Validate session
+    Database->>Server: 7. Return session data
+    Server->>Client: 8. Return protected data
+```
+
+### Session Storage Options
+
+| Method | Scalability | Performance | Security | Use Case |
+|--------|-------------|-------------|----------|----------|
+| **Memory** | Poor | Fastest | Low | Development |
+| **Database** | Good | Slow | Medium | Small apps |
+| **Redis** | Excellent | Fast | High | Production |
+| **File System** | Poor | Medium | Medium | Simple setups |
+
+### Session Configuration Example
 
 ```javascript
-const jwt = require('jsonwebtoken');
+// Express.js session configuration
+const session = require('express-session');
 
-const token = jwt.sign(
-  { userId: 123, role: 'user' },
-  'your-secret-key',
-  { expiresIn: '24h' }
-);
-
-const decoded = jwt.verify(token, 'your-secret-key');
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    httpOnly: true,                               // Prevent XSS
+    maxAge: 24 * 60 * 60 * 1000                   // 24 hours
+  },
+  store: redisStore // Use Redis for production
+}));
 ```
 
-#### **RS256 (RSA with SHA-256)**
-- **Type**: Asymmetric
-- **Usage**: Private key signs, public key verifies
-- **Best for**: Distributed systems, microservices
+### Sessions vs Tokens
 
-```javascript
-// Sign with private key
-const token = jwt.sign(
-  { userId: 123, role: 'user' },
-  privateKey,
-  { algorithm: 'RS256', expiresIn: '24h' }
-);
-
-// Verify with public key
-const decoded = jwt.verify(token, publicKey);
-```
-
-### JWT Implementation
-
-#### **Token Generation**
-
-```javascript
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-
-function generateJWT(user) {
-  const payload = {
-    sub: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-    permissions: user.permissions,
-    jti: crypto.randomUUID() // Unique token ID
-  };
-
-  const options = {
-    issuer: 'https://api.example.com',
-    audience: 'https://client.example.com',
-    expiresIn: '1h',
-    notBefore: 0
-  };
-
-  return jwt.sign(payload, process.env.JWT_SECRET, options);
-}
-```
-
-#### **Token Validation Middleware**
-
-```javascript
-const authenticateJWT = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        error: 'Token expired',
-        code: 'TOKEN_EXPIRED'
-      });
-    }
-
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        error: 'Invalid token',
-        code: 'TOKEN_INVALID'
-      });
-    }
-
-    res.status(403).json({ error: 'Token verification failed' });
-  }
-};
-```
-
-### JWT Best Practices
-
-| Practice | Implementation |
-|----------|----------------|
-| **Short expiration** | 15 minutes for access tokens |
-| **Refresh tokens** | Separate long-lived tokens |
-| **Secure storage** | HttpOnly cookies for web |
-| **HTTPS only** | Prevent token interception |
-| **Strong secrets** | Minimum 256-bit secrets |
-| **Rotation** | Regular key rotation schedule |
-
-### JWT vs Regular Tokens
-
-| Feature | JWT | Regular Token |
-|---------|-----|--------------|
-| **State** | Self-contained | Requires database lookup |
-| **Size** | Larger (claims included) | Smaller |
-| **Verification** | Cryptographic signature | Database validation |
-| **Performance** | Fast (no DB lookup) | Slower (DB required) |
-| **Revocation** | Difficult | Easy (remove from DB) |
-| **Distribution** | Easy (stateless) | Complex (shared DB) |
+| Feature | Sessions | Tokens |
+|---------|----------|--------|
+| **State Management** | Server-side | Stateless |
+| **Scalability** | Requires session store | Naturally scalable |
+| **Mobile Support** | Limited | Excellent |
+| **Logout** | Server-controlled | Client-controlled |
+| **Storage** | Server | Client (JWT) |
 
 ---
 
@@ -446,657 +237,442 @@ const authenticateJWT = (req, res, next) => {
 
 ### What is OAuth 2.0?
 
-Authorization framework that allows applications to obtain limited access to user accounts on an HTTP service.
+**OAuth 2.0**: An authorization framework that allows applications to obtain limited access to user accounts on an HTTP service.
+
+**📌 Think of it like**: A valet key for your car - you give it to the valet so they can park your car, but they can't open your trunk or drive away.
 
 ### OAuth 2.0 Roles
 
 | Role | Description | Example |
 |------|-------------|---------|
-| **Resource Owner** | User who owns the data | Facebook user |
-| **Client Application** | App requesting access | Photo editing app |
-| **Authorization Server** | Issues access tokens | Facebook OAuth server |
-| **Resource Server** | Hosts protected resources | Facebook API |
+| **Resource Owner** | User who owns the data | You, the user |
+| **Client** | Application requesting access | Photo editing app |
+| **Resource Server** | API that hosts the data | Google Photos API |
+| **Authorization Server** | Server that issues tokens | Google's OAuth server |
 
 ### OAuth 2.0 Grant Types
 
-#### **1. Authorization Code Grant**
+| Grant Type | Description | Use Case |
+|------------|-------------|----------|
+| **Authorization Code** | Code exchanged for token | Web applications |
+| **Implicit** | Token returned directly | Single-page apps |
+| **Client Credentials** | App-to-app authentication | Service accounts |
+| **Resource Owner Password** | Username/password exchanged | Trusted apps |
+| **Device Code** | Code displayed on device | TV/limited input devices |
+
+### Authorization Code Flow (Most Common)
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Client as Client App
+    participant User as Resource Owner
+    participant Client as App
     participant Auth as Authorization Server
-    participant Resource as Resource Server
+    participant API as Resource Server
 
-    User->>Client: Access protected resource
-    Client->>Auth: Redirect to authorize endpoint
-    Auth->>User: Show consent screen
-    User->>Auth: Grant permission
-    Auth->>Client: Redirect with authorization code
-    Client->>Auth: Exchange code for access token
-    Auth->>Client: Return access token
-    Client->>Resource: Request resource with token
-    Resource->>Client: Return protected resource
+    User->>Client: 1. Click "Login with Google"
+    Client->>Auth: 2. Redirect to auth URL
+    User->>Auth: 3. Login and grant permission
+    Auth->>Client: 4. Redirect with auth code
+    Client->>Auth: 5. Exchange code for token
+    Auth->>Client: 6. Return access token
+    Client->>API: 7. Request with access token
+    API->>Client: 8. Return protected data
 ```
 
-**Implementation Example:**
+### OAuth 2.0 Implementation Steps
 
+**Step 1: Register Application**
+- Get client ID and client secret
+- Set redirect URIs
+- Choose grant types
+
+**Step 2: Redirect User for Authorization**
 ```javascript
-// Step 1: Authorization Request
-app.get('/auth/facebook', (req, res) => {
-  const authUrl = 'https://www.facebook.com/v18.0/dialog/oauth?' +
-    'client_id=' + process.env.FACEBOOK_CLIENT_ID +
-    '&redirect_uri=' + encodeURIComponent('http://localhost:3000/auth/facebook/callback') +
-    '&scope=email,public_profile' +
-    '&response_type=code';
+const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+  `client_id=${CLIENT_ID}&` +
+  `redirect_uri=${REDIRECT_URI}&` +
+  `scope=profile email&` +
+  `response_type=code`;
 
-  res.redirect(authUrl);
-});
-
-// Step 2: Handle Callback
-app.get('/auth/facebook/callback', async (req, res) => {
-  const { code } = req.query;
-
-  // Exchange code for access token
-  const tokenResponse = await axios.post('https://graph.facebook.com/v18.0/oauth/access_token', {
-    client_id: process.env.FACEBOOK_CLIENT_ID,
-    client_secret: process.env.FACEBOOK_CLIENT_SECRET,
-    redirect_uri: 'http://localhost:3000/auth/facebook/callback',
-    code: code
-  });
-
-  const { access_token, refresh_token } = tokenResponse.data;
-
-  // Get user info
-  const userResponse = await axios.get('https://graph.facebook.com/me', {
-    params: {
-      fields: 'id,name,email',
-      access_token: access_token
-    }
-  });
-
-  // Create/update user and issue JWT
-  const user = await findOrCreateUser(userResponse.data);
-  const jwtToken = generateJWT(user);
-
-  res.json({ token: jwtToken, user });
-});
+res.redirect(authUrl);
 ```
 
-#### **2. Client Credentials Grant**
-
+**Step 3: Exchange Code for Token**
 ```javascript
-// For machine-to-machine communication
-app.post('/auth/token', async (req, res) => {
-  const { client_id, client_secret, grant_type } = req.body;
-
-  // Validate client credentials
-  const client = await validateClient(client_id, client_secret);
-  if (!client) {
-    return res.status(401).json({ error: 'Invalid client credentials' });
-  }
-
-  // Issue access token
-  const accessToken = generateAccessToken(client);
-
-  res.json({
-    access_token: accessToken,
-    token_type: 'Bearer',
-    expires_in: 3600
-  });
+// Backend receives code from redirect
+const response = await fetch('https://oauth2.googleapis.com/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    code: authCode,
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    redirect_uri: REDIRECT_URI,
+    grant_type: 'authorization_code'
+  })
 });
 ```
 
-#### **3. Resource Owner Password Credentials Grant**
+### Common OAuth 2.0 Providers
 
-```javascript
-app.post('/auth/password', async (req, res) => {
-  const { username, password, client_id, client_secret } = req.body;
-
-  // Validate client
-  const client = await validateClient(client_id, client_secret);
-  if (!client) {
-    return res.status(401).json({ error: 'Invalid client credentials' });
-  }
-
-  // Validate user credentials
-  const user = await validateUserCredentials(username, password);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid user credentials' });
-  }
-
-  // Issue tokens
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
-  res.json({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    token_type: 'Bearer',
-    expires_in: 3600
-  });
-});
-```
-
-### OAuth 2.0 Implementation
-
-#### **Access Token Endpoint**
-
-```javascript
-app.post('/oauth/token', async (req, res) => {
-  const { grant_type, code, redirect_uri, client_id, client_secret } = req.body;
-
-  if (grant_type !== 'authorization_code') {
-    return res.status(400).json({ error: 'unsupported_grant_type' });
-  }
-
-  // Validate authorization code
-  const authCode = await validateAuthorizationCode(code, client_id);
-  if (!authCode) {
-    return res.status(400).json({ error: 'invalid_grant' });
-  }
-
-  // Generate access token
-  const accessToken = generateAccessToken(authCode.userId);
-  const refreshToken = generateRefreshToken(authCode.userId);
-
-  // Invalidate authorization code
-  await invalidateAuthorizationCode(code);
-
-  res.json({
-    access_token: accessToken,
-    token_type: 'Bearer',
-    expires_in: 3600,
-    refresh_token: refreshToken,
-    scope: authCode.scope
-  });
-});
-```
-
-#### **Token Introspection**
-
-```javascript
-app.post('/oauth/introspect', async (req, res) => {
-  const { token } = req.body;
-
-  const tokenData = await validateAccessToken(token);
-
-  if (!tokenData) {
-    return res.json({ active: false });
-  }
-
-  res.json({
-    active: true,
-    scope: tokenData.scope,
-    client_id: tokenData.clientId,
-    username: tokenData.username,
-    exp: tokenData.expiresAt.getTime() / 1000,
-    iat: tokenData.createdAt.getTime() / 1000
-  });
-});
-```
-
-### OAuth 2.0 vs JWT
-
-| Feature | OAuth 2.0 | JWT |
-|---------|------------|-----|
-| **Purpose** | Authorization framework | Token format |
-| **Scope** | Delegated access | Claims and metadata |
-| **Revocation** | Built-in revocation | Difficult (blacklist needed) |
-| **Token Types** | Access + refresh tokens | Single token type |
-| **Complexity** | Complex implementation | Simple |
-| **Use Case** | Third-party access | API authentication |
+| Provider | Documentation | Popular Scopes |
+|----------|----------------|----------------|
+| **Google** | developers.google.com | profile, email, drive |
+| **GitHub** | docs.github.com/en/developers | user, repo, read:user |
+| **Facebook** | developers.facebook.com | email, public_profile |
+| **Microsoft** | docs.microsoft.com/azure/active-directory | openid, profile, email |
 
 ---
 
-## Session Based Authentication
+## Multi-Factor Authentication (MFA)
 
-### What is Session-Based Auth?
+### What is MFA?
 
-Authentication method where server creates a session after login and stores session data, returning a session identifier to the client.
+**MFA (Multi-Factor Authentication)**: Security system requiring more than one method of authentication from independent categories.
 
-### Session Authentication Flow
+**📌 Think of it like**: Using both your key and fingerprint to open a high-security door.
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Server
-    participant SessionStore
+### Authentication Factors
 
-    Client->>Server: Login with credentials
-    Server->>SessionStore: Create session with session ID
-    SessionStore-->>Server: Return session ID
-    Server->>Client: Set-Cookie: sessionId=abc123
-    Client->>Server: Request with session cookie
-    Server->>SessionStore: Lookup session by ID
-    SessionStore-->>Server: Return session data
-    Server-->>Client: Response
-```
+| Factor | Examples | Security Level |
+|--------|----------|----------------|
+| **Something you know** | Password, PIN, security questions | Basic |
+| **Something you have** | Phone, hardware token, smart card | Strong |
+| **Something you are** | Fingerprint, face, voice, iris | Very Strong |
+| **Somewhere you are** | GPS location, IP address | Medium |
 
-### Session Implementation
+### Common MFA Methods
 
-#### **Express.js Session Setup**
+| Method | Description | Pros | Cons |
+|--------|-------------|------|------|
+| **SMS/Email Codes** | Code sent to phone/email | Simple, no extra app | Less secure, can be intercepted |
+| **Authenticator Apps** | TOTP codes from apps | Very secure, offline | Requires smartphone |
+| **Hardware Keys** | USB security keys | Extremely secure | Cost, device required |
+| **Biometrics** | Fingerprint, face scan | Convenient | Privacy concerns |
 
+### TOTP Implementation (Time-based One-Time Password)
+
+**Algorithm Flow:**
+1. Server generates secret key for user
+2. User adds secret to authenticator app
+3. Both generate 6-digit codes every 30 seconds
+4. User enters code to verify
+
+**Code Example:**
 ```javascript
-const express = require('express');
-const session = require('express-session');
-const RedisStore = require('connect-redis')(session);
-const redis = require('redis');
-
-const app = express();
-
-// Redis client for session storage
-const redisClient = redis.createClient({
-  host: 'localhost',
-  port: 6379
+// Generate TOTP secret
+const speakeasy = require('speakeasy');
+const secret = speakeasy.generateSecret({
+  name: 'MyApp (user@example.com)',
+  issuer: 'MyApp'
 });
 
-// Session middleware
-app.use(session({
-  store: new RedisStore({ client: redisClient }),
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
+// Verify TOTP token
+const verified = speakeasy.totp.verify({
+  secret: userSecret,
+  encoding: 'base32',
+  token: userInputCode,
+  window: 1 // Allow 30 seconds time drift
+});
 ```
 
-#### **Login Handler**
+### MFA Implementation Strategy
 
 ```javascript
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
+// Login flow with MFA
+async function loginWithMFA(req, res) {
+  const { username, password, mfaCode } = req.body;
 
-  // Validate credentials
+  // Step 1: Validate username/password
   const user = await validateCredentials(username, password);
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  // Create session
-  req.session.userId = user.id;
-  req.session.username = user.username;
-  req.session.role = user.role;
-  req.session.loginTime = new Date();
-
-  res.json({
-    message: 'Login successful',
-    user: { id: user.id, username: user.username }
-  });
-});
-```
-
-#### **Authentication Middleware**
-
-```javascript
-const requireAuth = (req, res, next) => {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  // Optionally refresh session
-  req.session.touch();
-  next();
-};
-```
-
-#### **Logout Handler**
-
-```javascript
-app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ error: 'Logout failed' });
+  // Step 2: Check MFA requirement
+  if (user.mfaEnabled) {
+    if (!mfaCode) {
+      return res.status(401).json({
+        error: 'MFA code required',
+        requiresMFA: true
+      });
     }
 
-    res.clearCookie('sessionId');
-    res.json({ message: 'Logged out successfully' });
-  });
-});
-```
-
-### Session Storage Options
-
-| Storage Type | Pros | Cons | Use Case |
-|--------------|------|------|----------|
-| **Memory** | Fastest | Not scalable, server restart loses data | Development |
-| **Database** | Persistent, scalable | Performance overhead | Small applications |
-| **Redis** | Fast, scalable, TTL support | Memory usage | Production apps |
-| **File System** | Simple | Performance issues, scaling problems | Small sites |
-
-### Redis Session Store Implementation
-
-```javascript
-const Redis = require('ioredis');
-const { promisify } = require('util');
-
-class SessionStore {
-  constructor(options = {}) {
-    this.redis = new Redis(options.redis);
-    this.prefix = options.prefix || 'sess:';
-    this.ttl = options.ttl || 86400; // 24 hours
+    // Step 3: Verify MFA code
+    const isValidMFA = await verifyMFACode(user.mfaSecret, mfaCode);
+    if (!isValidMFA) {
+      return res.status(401).json({ error: 'Invalid MFA code' });
+    }
   }
 
-  async get(sid) {
-    const data = await this.redis.get(this.prefix + sid);
-    return data ? JSON.parse(data) : null;
-  }
-
-  async set(sid, sess, ttl = this.ttl) {
-    await this.redis.setex(
-      this.prefix + sid,
-      ttl,
-      JSON.stringify(sess)
-    );
-  }
-
-  async destroy(sid) {
-    await this.redis.del(this.prefix + sid);
-  }
-
-  async touch(sid, sess, ttl = this.ttl) {
-    await this.redis.setex(
-      this.prefix + sid,
-      ttl,
-      JSON.stringify(sess)
-    );
-  }
+  // Step 4: Generate access token
+  const token = generateJWT(user);
+  res.json({ accessToken: token });
 }
-
-// Usage
-const sessionStore = new SessionStore({
-  redis: { host: 'localhost', port: 6379 },
-  prefix: 'myapp:sess:',
-  ttl: 3600
-});
 ```
-
-### Session Security
-
-#### **Session Fixation Prevention**
-
-```javascript
-app.post('/api/auth/login', async (req, res) => {
-  // Regenerate session to prevent fixation
-  req.session.regenerate((err) => {
-    if (err) return res.status(500).json({ error: 'Session error' });
-
-    // Set session data
-    req.session.userId = user.id;
-    req.session.loginTime = new Date();
-
-    res.json({ message: 'Login successful' });
-  });
-});
-```
-
-#### **Session Hijacking Protection**
-
-```javascript
-app.use((req, res, next) => {
-  // Check IP address
-  if (req.session.ipAddress && req.session.ipAddress !== req.ip) {
-    req.session.destroy();
-    return res.status(401).json({ error: 'Session invalidated' });
-  }
-
-  // Check User-Agent
-  if (req.session.userAgent && req.session.userAgent !== req.get('User-Agent')) {
-    req.session.destroy();
-    return res.status(401).json({ error: 'Session invalidated' });
-  }
-
-  // Store session info
-  req.session.ipAddress = req.ip;
-  req.session.userAgent = req.get('User-Agent');
-
-  next();
-});
-```
-
-### Session vs Token Authentication
-
-| Feature | Session-Based | Token-Based |
-|---------|---------------|-------------|
-| **State** | Server-side | Client-side |
-| **Scalability** | Requires shared session store | Stateless |
-| **Storage** | Database/Redis | Client storage |
-| **Revocation** | Easy (remove from store) | Difficult (blacklist) |
-| **Performance** | Slower (DB lookup) | Faster (signature verification) |
-| **Mobile** | Cookie limitations | Header-based works well |
-| **CORS** | Complex with cookies | Simple with headers |
-
-### Session Management Best Practices
-
-| Practice | Implementation |
-|----------|----------------|
-| **Secure cookies** | `secure: true`, `httpOnly: true` |
-| **Session timeout** | Set reasonable TTL |
-| **Regenerate on login** | Prevent session fixation |
-| **HTTPS only** | Prevent session hijacking |
-| **Store minimal data** | Reduce memory usage |
-| **Clean expired sessions** | Prevent memory leaks |
 
 ---
 
-## Authentication Method Comparison
+## API Keys
 
-### Decision Matrix
+### What are API Keys?
 
-| Factor | Basic Auth | Token Auth | JWT | OAuth 2.0 | Session Auth |
-|--------|------------|------------|-----|-----------|--------------|
-| **Security** | ⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Scalability** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ |
-| **Complexity** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐ |
-| **State Management** | Stateless | Server state | Self-contained | Tokens + server | Server state |
-| **Mobile Support** | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
-| **Third-party Access** | ❌ | ❌ | ❌ | ✅ | ❌ |
+**API Key**: A unique identifier used to authenticate a user, developer, or calling program to an API.
 
-### When to Use Each Method
+**📌 Think of it like**: A library card number that identifies who you are when checking out books.
 
-#### **Basic Auth**
-- **Internal APIs** with controlled access
-- **Simple scripts** and automation
-- **Development environments**
-- **Legacy system integration**
+### API Key Types
 
-#### **Token-Based Auth**
-- **Single-page applications**
-- **Mobile applications**
-- **Microservices architecture**
-- **API-first development**
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **Public Key** | Identifies client, no auth | Public APIs, rate limiting |
+| **Private Key** | Secret authentication | Server-to-server calls |
+| **Limited Scope** | Permissions-based access | Third-party integrations |
 
-#### **JWT**
-- **Distributed systems**
-- **Stateless architectures**
-- **Cross-service authentication**
-- **Mobile and web applications**
+### API Key Implementation
 
-#### **OAuth 2.0**
-- **Third-party integration**
-- **Social login** (Google, Facebook, GitHub)
-- **API access delegation**
-- **Enterprise SSO**
+**Key Generation:**
+```javascript
+const crypto = require('crypto');
 
-#### **Session-Based Auth**
-- **Traditional web applications**
-- **Server-rendered pages**
-- **Simple authentication needs**
-- **Admin panels**
+function generateAPIKey() {
+  return {
+    keyId: `ak_${crypto.randomBytes(16).toString('hex')}`,
+    keySecret: crypto.randomBytes(32).toString('hex')
+  };
+}
 
-### Security Best Practices
+// Result:
+// {
+//   keyId: "ak_1a2b3c4d5e6f7g8h9i0j",
+//   keySecret: "1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t"
+// }
+```
 
-| Practice | Implementation |
-|----------|----------------|
-| **HTTPS Only** | Prevent credential interception |
-| **Strong Passwords** | Minimum complexity requirements |
-| **Rate Limiting** | Prevent brute force attacks |
-| **Account Lockout** | After failed login attempts |
-| **Multi-Factor Auth** | Additional security layer |
-| **Audit Logging** | Track authentication events |
-| **Token Expiration** | Short-lived access tokens |
-| **Secure Storage** | Don't store credentials in code |
+**API Key Usage:**
+```http
+GET /api/users HTTP/1.1
+X-API-Key: ak_1a2b3c4d5e6f7g8h9i0j
+X-API-Secret: 1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t
+```
+
+### API Key Security Best Practices
+
+| Practice | Description | Implementation |
+|----------|-------------|----------------|
+| **HTTPS Only** | Never transmit over HTTP | Enforce HTTPS in server |
+| **Key Rotation** | Change keys regularly | Implement key expiration |
+| **Rate Limiting** | Prevent abuse | Per-key rate limits |
+| **Scoping** | Limit key permissions | Define key capabilities |
+| **Auditing** | Log all usage | Track key access patterns |
+
+---
+
+## Authentication Best Practices
+
+### Security Checklist
+
+| Practice | Why Important | Implementation |
+|----------|----------------|----------------|
+| **HTTPS Only** | Prevents man-in-the-middle attacks | Use SSL/TLS certificates |
+| **Password Hashing** | Protects passwords in database | bcrypt, Argon2, scrypt |
+| **Rate Limiting** | Prevents brute force attacks | Login attempt limits |
+| **Input Validation** | Prevents injection attacks | Sanitize all inputs |
+| **Token Expiration** | Limits window of abuse | Short-lived access tokens |
+| **Secure Storage** | Protects secrets | Environment variables, vaults |
+
+### Password Security
+
+**Hashing Algorithms (Recommended):**
+- **bcrypt**: Adaptive, good for passwords
+- **Argon2**: Winner of password hashing competition
+- **scrypt**: Memory-intensive, resistant to GPU attacks
+
+```javascript
+// bcrypt example
+const bcrypt = require('bcrypt');
+
+async function hashPassword(password) {
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
+}
+
+async function verifyPassword(password, hash) {
+  return await bcrypt.compare(password, hash);
+}
+```
+
+### Token Security
+
+| Security Measure | Implementation |
+|------------------|----------------|
+| **Short-lived tokens** | 15-60 minute expiration |
+| **Refresh tokens** | Long-lived but securely stored |
+| **Secure storage** | HttpOnly, Secure cookies |
+| **Token rotation** | New tokens on each use |
+| **Audience/Scope** | Limit token usage context |
+
+### Monitoring and Logging
+
+**Key Authentication Events to Log:**
+- Successful logins
+- Failed login attempts
+- Token generation/refresh
+- Password changes
+- MFA challenges
+- API key usage
+
+**Red Flags to Monitor:**
+- Multiple failed attempts
+- Unusual locations/times
+- Rapid successive requests
+- Token abuse patterns
+- API key anomalies
+
+---
+
+## Choosing the Right Authentication Method
+
+### Decision Framework
+
+```mermaid
+graph TD
+    A[What's Your Use Case?] --> B{Public or Internal?}
+
+    B -->|Public| C{Web or Mobile App?}
+    B -->|Internal| D{Simple or Complex?}
+
+    C -->|Web| E[OAuth 2.0 + JWT]
+    C -->|Mobile| F[OAuth 2.0 + Refresh Tokens]
+
+    D -->|Simple| G[API Keys]
+    D -->|Complex| H[JWT + Sessions]
+
+    E --> I{High Security Needed?}
+    F --> I
+    H --> I
+
+    I -->|Yes| J[Add MFA]
+    I -->|No| K[Standard Auth]
+```
+
+### Comparison Matrix
+
+| Method | Complexity | Security | Scalability | Mobile Support | Best For |
+|--------|------------|----------|-------------|----------------|----------|
+| **Basic Auth** | Very Low | Low | High | Good | Internal APIs |
+| **Session-Based** | Medium | Medium | Medium | Poor | Traditional Web Apps |
+| **JWT Tokens** | Medium | High | High | Excellent | Modern Web/Mobile |
+| **OAuth 2.0** | High | High | High | Excellent | Third-party Integration |
+| **API Keys** | Low | Medium | High | Excellent | Service-to-Service |
+
+### Implementation Recommendations
+
+| Scenario | Recommended Method | Additional Security |
+|----------|-------------------|---------------------|
+| **Modern SPA** | JWT + Refresh Tokens | CSRF protection |
+| **Mobile App** | OAuth 2.0 + JWT | Biometric auth |
+| **Microservices** | API Keys + mTLS | Zero-trust network |
+| **Public API** | API Keys + OAuth 2.0 | Rate limiting |
+| **Enterprise** | SAML + MFA | SSO integration |
 
 ---
 
 ## Interview Questions
 
-### **Q1: What is the difference between Authentication and Authorization?**
-**Answer:**
-- **Authentication**: Who you are (verify identity)
-- **Authorization**: What you can do (check permissions)
-- **Analogy**: Authentication = showing your ID, Authorization = checking if you have the right key for a room
+### Basic Questions
 
-### **Q2: When would you use JWT over session-based authentication?**
-**Answer:**
-**Use JWT when:**
-- Microservices architecture (stateless)
-- Mobile applications
-- Cross-domain authentication
-- Self-contained tokens needed
-- High scalability required
+1. **What's the difference between authentication and authorization?**
+   - Authentication: Who you are (proving identity)
+   - Authorization: What you can do (permissions)
 
-**Use Sessions when:**
-- Traditional web applications
-- Need for immediate token revocation
-- Simple authentication flow
-- Server-rendered pages
+2. **How does JWT work?**
+   - Self-contained token with header, payload, signature
+   - Signed with secret key to prevent tampering
+   - Contains claims about the user
 
-### **Q3: What are the main components of OAuth 2.0?**
-**Answer:**
-OAuth 2.0 has four main roles:
-1. **Resource Owner**: User who owns the data
-2. **Client Application**: App requesting access
-3. **Authorization Server**: Issues access tokens
-4. **Resource Server**: Hosts protected resources
+3. **Why is Basic Authentication insecure?**
+   - Sends credentials in Base64 (easily decoded)
+   - Should only be used with HTTPS
+   - No built-in logout mechanism
 
-Common grant types: Authorization Code, Client Credentials, Resource Owner Password Credentials.
+### Intermediate Questions
 
-### **Q4: What are the security risks of Basic Authentication and how to mitigate them?**
-**Answer:**
-**Risks:**
-- Credentials sent in plain text (Base64 encoding, not encryption)
-- Credentials cached by browsers
-- No logout mechanism
-- Susceptible to man-in-the-middle attacks
+4. **What's the difference between sessions and tokens?**
+   - Sessions: Server-side state, cookies
+   - Tokens: Client-side, stateless, JWT
+   - Sessions scale poorly, tokens scale naturally
 
-**Mitigation:**
-- Always use HTTPS
-- Implement rate limiting
-- Use strong passwords
-- Consider two-factor authentication
-- Add IP-based restrictions
+5. **How does OAuth 2.0 work?**
+   - Authorization framework for delegated access
+   - Uses authorization codes, access tokens, refresh tokens
+   - Common grant types: Authorization Code, Client Credentials
 
-### **Q5: What is the difference between access token and refresh token?**
-**Answer:**
-**Access Token:**
-- Short-lived (minutes to hours)
-- Used for API requests
-- Can be self-contained (JWT)
-- Higher risk if compromised
+6. **What is MFA and why is it important?**
+   - Multi-Factor Authentication
+   - Uses multiple authentication factors
+   - Protects against password compromise
 
-**Refresh Token:**
-- Long-lived (days to months)
-- Used to get new access tokens
-- Stored securely on server side
-- Lower risk, can be revoked
+### Advanced Questions
 
-### **Q6: How do you implement token expiration and refresh?**
-**Answer:**
-```javascript
-// Generate tokens with different expirations
-const accessToken = jwt.sign(payload, secret, { expiresIn: '15m' });
-const refreshToken = jwt.sign({ userId }, refreshSecret, { expiresIn: '7d' });
+7. **How would you prevent JWT token theft?**
+   - Use short expiration times
+   - Store in secure HttpOnly cookies
+   - Implement token rotation
+   - Use refresh tokens properly
 
-// Refresh endpoint
-app.post('/refresh', (req, res) => {
-  const { refreshToken } = req.body;
-  const decoded = jwt.verify(refreshToken, refreshSecret);
-  const newAccessToken = jwt.sign({ userId: decoded.userId }, secret, { expiresIn: '15m' });
-  res.json({ accessToken: newAccessToken });
-});
+8. **What are the security risks of API keys?**
+   - Can be stolen from code repositories
+   - No expiration by default
+   - Hard to revoke quickly
+   - Need proper scoping and rate limiting
+
+9. **How would you implement secure password storage?**
+   - Use modern hashing algorithms (bcrypt, Argon2)
+   - Never store plain passwords
+   - Use salt to prevent rainbow table attacks
+   - Implement password policies
+
+---
+
+## Summary
+
+### Key Takeaways
+
+1. **Basic Auth**: Simple but limited, use only with HTTPS
+2. **JWT Tokens**: Stateless, scalable, great for modern apps
+3. **Sessions**: Traditional, server-side, good for web apps
+4. **OAuth 2.0**: Industry standard for third-party access
+5. **MFA**: Essential for high-security applications
+6. **API Keys**: Perfect for service-to-service communication
+
+### Security Best Practices Checklist
+
+- [ ] Always use HTTPS for authentication
+- [ ] Hash passwords with modern algorithms
+- [ ] Use short-lived tokens with refresh mechanism
+- [ ] Implement rate limiting for login attempts
+- [ ] Add MFA for sensitive operations
+- [ ] Log authentication events
+- [ ] Store secrets securely (environment variables)
+- [ ] Regularly rotate keys and secrets
+
+### Implementation Decision Flow
+
+```mermaid
+graph LR
+    A[Start] --> B{Public API?}
+    B -->|Yes| C[OAuth 2.0 + API Keys]
+    B -->|No| D{Web App?}
+    D -->|Yes| E[Sessions + CSRF Protection]
+    D -->|No| F[JWT + Refresh Tokens]
+
+    C --> G{High Security?}
+    E --> G
+    F --> G
+
+    G -->|Yes| H[Add MFA]
+    G -->|No| I[Standard Implementation]
 ```
 
-### **Q7: What are the security considerations for JWT implementation?**
-**Answer:**
-**Key Security Points:**
-- Use strong signing keys (minimum 256-bit)
-- Choose appropriate algorithm (RS256 for distributed systems)
-- Implement short expiration times
-- Use refresh tokens for longer sessions
-- Validate token structure and claims
-- Implement token blacklisting for revocation
-- Secure token storage (HttpOnly cookies, secure storage)
-
----
-
-## Quick Tips & Best Practices
-
-### **General Authentication**
-✅ Always use HTTPS for authentication
-✅ Implement proper error handling without information leakage
-✅ Use strong password policies
-✅ Implement rate limiting to prevent brute force attacks
-✅ Log authentication attempts for security monitoring
-
-### **Token Management**
-✅ Use short-lived access tokens
-✅ Implement refresh tokens for better security
-✅ Store tokens securely on client side
-✅ Include expiration and issuer information
-✅ Implement token revocation mechanisms
-
-### **JWT Specific**
-✅ Use appropriate signing algorithm
-✅ Include necessary claims only
-✅ Validate all token fields
-✅ Implement proper key management
-✅ Consider token size for performance
-
-### **Session Management**
-✅ Use secure, HttpOnly cookies
-✅ Implement session timeout
-✅ Regenerate session IDs on login
-✅ Store minimal session data
-✅ Implement session cleanup
-
-### **OAuth 2.0**
-✅ Use PKCE for public clients
-✅ Validate redirect URIs
-✅ Implement proper scope management
-✅ Use state parameter to prevent CSRF
-✅ Secure client credentials
-
----
-
-## Chapter Summary
-
-Chapter 4 explores different authentication methods for securing APIs:
-
-### **Authentication Methods Overview**
-
-| Method | Best For | Key Features |
-|--------|----------|--------------|
-| **Basic Auth** | Internal APIs, simple needs | HTTP standard, easy implementation |
-| **Token-Based** | SPAs, mobile apps | Stateless, scalable, custom storage |
-| **JWT** | Distributed systems | Self-contained, claims-based, stateless |
-| **OAuth 2.0** | Third-party access | Delegated authorization, social login |
-| **Session-Based** | Traditional web apps | Server-side state, browser cookies |
-
-### **Key Concepts**
-
-- **Authentication vs Authorization**: Identity verification vs permission checking
-- **Token Management**: Access tokens, refresh tokens, expiration
-- **Security Considerations**: HTTPS, storage, revocation, rate limiting
-- **State vs Stateless**: Server-side sessions vs self-contained tokens
-- **Scalability**: Distributed authentication needs
-
-### **Implementation Patterns**
-
-Each authentication method provides different trade-offs between security, complexity, and scalability. Choose based on your specific application requirements, security needs, and infrastructure constraints.
-
-Authentication is the foundation of API security, providing the mechanism to verify client identities before enforcing access control policies.
+**Next Up**: Chapter 05 explores Authorization Methods, covering how to control what authenticated users can access and do.
