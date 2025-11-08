@@ -76,7 +76,7 @@ graph TD
 - **Multilevel**: Grandparent → Parent → Child
 - **Hierarchical**: One parent, multiple children
 
-#### 3. Polymorphism
+#### 3. Polymorphism (Static and Dynamic)
 **Definition**: One interface, multiple implementations
 - **Compile Time**: Function overloading, operator overloading
 - **Runtime**: Function overriding, virtual functions
