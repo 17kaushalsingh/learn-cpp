@@ -1,4 +1,10 @@
-# Maths & Statistics Revision - AI Scientist Interview Prep
+# Maths & Statistics Comprehensive Revision - AI Scientist Interview Prep
+
+## Interview Overview
+- **Weightage**: 33.33% (Critical Section!)
+- **Time**: 30 minutes for Round 1
+- **Focus**: Deep conceptual understanding with practical applications
+- **What Interviewers Want**: Clear reasoning, step-by-step approach, intuition behind formulas
 
 ## Table of Contents
 1. [Probability](#probability)
@@ -16,37 +22,575 @@
 
 ## Probability
 
-### Key Concepts
+### Fundamental Concepts (Must Know for Interview)
 
-**Basic Definitions:**
-- **Probability**: P(A) = Number of favorable outcomes / Total possible outcomes
-- **Conditional Probability**: P(A|B) = P(A ∩ B) / P(B)
-- **Independent Events**: P(A ∩ B) = P(A) × P(B)
+#### 1. Basic Probability Definition
+**Intuition**: Probability measures how likely something is to happen, ranging from 0 (impossible) to 1 (certain)
 
-**Rules:**
-- **Addition Rule**: P(A ∪ B) = P(A) + P(B) - P(A ∩ B)
-- **Multiplication Rule**: P(A ∩ B) = P(A) × P(B|A)
+**Mathematical Definition**:
+P(A) = Number of favorable outcomes ÷ Total possible outcomes
 
-### Interview Questions
+**Why This Matters**: This is the foundation of all statistical thinking in ML and data science.
 
-#### Q1: Two fair coins are tossed. What's the probability of getting exactly one head?
-**Intuition**: Count favorable outcomes vs total outcomes.
+#### 2. Sample Space and Events
+```
+Sample Space (S): All possible outcomes
+Event (A): Subset of sample space
+Complement (A'): All outcomes NOT in A
+```
 
-**Solution**: Total outcomes = 4 (HH, HT, TH, TT). Favorable = 2 (HT, TH)
-P = 2/4 = 0.5
+**Example**: Rolling a die
+- Sample Space S = {1, 2, 3, 4, 5, 6}
+- Event A = "even number" = {2, 4, 6}
+- Complement A' = "odd number" = {1, 3, 5}
+
+#### 3. Conditional Probability - The Heart of Many ML Algorithms
+
+**Intuition**: "What's the probability of A happening, given that B has already happened?"
+
+**Formula**: P(A|B) = P(A ∩ B) / P(B)
+
+**Step-by-Step Thought Process**:
+1. What's the new "world" we're living in? (B has happened)
+2. Within this new world, what fraction corresponds to A?
+3. This becomes our conditional probability
+
+**Why Crucial**: Naive Bayes, Bayesian networks, medical diagnosis, spam filters all depend on this!
+
+#### 4. Independence - A Special Case
+
+**Intuition**: Two events don't influence each other at all
+
+**Mathematical Condition**: P(A|B) = P(A) OR P(B|A) = P(B)
+**Practical Formula**: P(A ∩ B) = P(A) × P(B)
+
+**Common Mistake**: Assuming independence when it's not true!
+
+### Key Probability Rules with Intuition
+
+#### 1. Addition Rule (OR scenarios)
+**When to Use**: "What's probability of A OR B happening?"
+
+```
+General Case: P(A ∪ B) = P(A) + P(B) - P(A ∩ B)
+Special Case (Mutually Exclusive): P(A ∪ B) = P(A) + P(B)
+```
+
+**Intuition**: Add probabilities, but subtract overlap to avoid double-counting!
+
+**Interview Tip**: Always check if events are mutually exclusive first!
+
+#### 2. Multiplication Rule (AND scenarios)
+**When to Use**: "What's probability of A AND B both happening?"
+
+```
+General Case: P(A ∩ B) = P(A) × P(B|A)
+Special Case (Independent): P(A ∩ B) = P(A) × P(B)
+```
+
+**Intuition**: First probability of A, then probability of B given A has happened
+
+### Deep Dive Interview Questions
+
+#### Q1: Two Dice Problem (Foundation Level)
+**Question**: Two fair dice are rolled. What's the probability that the sum is exactly 7?
+
+**Step-by-Step Solution**:
+1. **Sample Space**: 6 × 6 = 36 total outcomes
+2. **Favorable Outcomes**: (1,6), (2,5), (3,4), (4,3), (5,2), (6,1) = 6 outcomes
+3. **Probability**: 6/36 = 1/6
+
+**Interview Follow-ups**:
+- What about sum > 7? (15 favorable outcomes → 15/36 = 5/12)
+- What about sum is prime? (2,3,5,7,11 → count these)
+- What if dice are biased? How would approach change?
+
+#### Q2: Card Drawing Without Replacement (Tests Conditional Probability)
+**Question**: From a standard deck, you draw 2 cards without replacement. What's P(both are hearts)?
+
+**Intuitive Approach**:
+1. **First draw**: P(heart) = 13/52 = 1/4
+2. **Second draw**: Given first was heart, now 12 hearts left, 51 cards total
+3. **Second draw**: P(heart|first was heart) = 12/51
+4. **Both events**: P = (13/52) × (12/51) = 1/17
+
+**Alternative Solution Using Combinations**:
+- Total ways to choose 2 cards: C(52,2) = 1326
+- Ways to choose 2 hearts: C(13,2) = 78
+- Probability: 78/1326 = 1/17
+
+**Interview Tip**: Show both methods - demonstrates versatility!
+
+#### Q3: Birthday Problem (Classic Interview Question)
+**Question**: In a room of 23 people, what's the probability that at least 2 people share the same birthday?
+
+**Intuitive Strategy**: Calculate the opposite probability (NO shared birthdays), then subtract from 1.
+
+**Step-by-Step Solution**:
+1. **Person 1**: Can have any birthday (365/365)
+2. **Person 2**: Must have different birthday (364/365)
+3. **Person 3**: Must avoid previous 2 birthdays (363/365)
+4. **Continue**... Person 23: (343/365)
+5. **Multiply all together**: (365×364×363×...×343)/365²³
+6. **Result**: ≈ 0.4927 (49.27% chance NO shared birthdays)
+7. **Final Answer**: 1 - 0.4927 = 0.5073 (50.73% chance at least 2 share birthday)
+
+**Why This Interview Question**:
+- Tests understanding of complementary probability
+- Shows how small individual probabilities multiply to significant results
+- Demonstrates counterintuitive nature of probability
 
 **Follow-up Questions**:
-- What if we toss 3 coins? What's P(exactly 2 heads)?
-- Generalize: For n coins, what's P(exactly k heads)?
+- How many people needed for 90% probability? (≈ 41 people)
+- What about leap years? How does this affect the calculation?
+- How would you estimate this without exact calculation?
 
-#### Q2: In a bag with 3 red and 2 blue balls, what's P(2nd ball is red) given that 1st was blue?
-**Solution**: After removing 1 blue: 3 red, 1 blue remain. P(2nd is red) = 3/4
+#### Q4: Medical Testing (Critical for Data Science Applications)
+**Question**: A disease affects 1% of population. A test is 99% accurate. If you test positive, what's the probability you actually have the disease?
 
-**Follow-up**: What if balls are replaced? What if order matters?
+**This is a Bayes' Theorem problem in disguise! Let's solve intuitively:**
 
-#### Q3: A die is rolled twice. What's P(sum > 9)?
-**Solution**: Total outcomes = 36. Favorable outcomes: (4,6), (5,5), (5,6), (6,4), (6,5), (6,6)
-P = 6/36 = 1/6
+**Step 1: Assume 10,000 people (easy numbers)**
+- **Actually sick**: 100 people (1% of 10,000)
+- **Actually healthy**: 9,900 people
+
+**Step 2: Test results**
+- **True positives**: 99 sick people × 99% accuracy = 99 people
+- **False positives**: 9,900 healthy × 1% error rate = 99 people
+- **Total positive tests**: 99 + 99 = 198 people
+
+**Step 3: Final probability**
+- **Actually sick given positive test**: 99/198 = 50%
+
+**Why This is Shocking**: Only 50% chance despite 99% accurate test!
+
+**Interview Insight**: This demonstrates why base rates are crucial in ML and data science.
+
+#### Q5: Monte Hall Problem (Tests Conditional Thinking)
+**Question**: You're on a game show. 3 doors, 1 car behind 1 door. You pick door 1. Host opens door 3 showing goat. Should you switch to door 2?
+
+**Intuitive Solution**:
+```
+Initial choice: Door 1 (1/3 probability)
+Switching strategy wins if car was behind doors 2 or 3
+- Car behind door 2: Host opens door 3, you switch → WIN
+- Car behind door 3: Host opens door 2, you switch → WIN
+- Car behind door 1: Host opens either door, you switch → LOSE
+
+Switching wins 2/3 of the time!
+```
+
+**Key Insight**: Host's action provides information that changes probabilities!
+
+### Advanced Probability Concepts
+
+#### 1. Expected Value (Foundation of ML)
+**Intuition**: Long-term average if you repeat experiment many times
+
+**Formula**: E[X] = Σ(x × P(x))
+
+**Example**: Roll a fair die, win amount shown
+E = 1×(1/6) + 2×(1/6) + 3×(1/6) + 4×(1/6) + 5×(1/6) + 6×(1/6) = 3.5
+
+**Why Important**: Decision theory, reinforcement learning, expected utility
+
+#### 2. Variance and Standard Deviation
+**Intuition**: How spread out are the values?
+
+**Formula**: Var(X) = E[(X - μ)²] = E[X²] - (E[X])²
+**Standard Deviation**: σ = √Var(X)
+
+#### 3. Covariance and Correlation Preview
+```
+Cov(X,Y) = E[(X - μₓ)(Y - μᵧ)]
+Correlation = Cov(X,Y) / (σₓ × σᵧ)
+```
+
+### Interview Strategy for Probability Questions
+
+#### What Interviewers Look For:
+1. **Clear problem restatement**: "Let me understand what we're trying to find..."
+2. **Step-by-step approach**: Break down complex problems
+3. **Multiple solution methods**: Show flexibility in thinking
+4. **Intuition behind formulas**: Not just memorization
+5. **Connection to real applications**: How does this apply to ML/data science?
+
+#### Common Traps to Avoid:
+❌ Assuming independence without checking
+❌ Confusing P(A|B) with P(B|A)
+❌ Forgetting to consider all possible cases
+❌ Making arithmetic errors under pressure
+❌ Not explaining your thought process
+
+#### Pro Tips:
+✅ Always verify your answer makes sense (0 ≤ probability ≤ 1)
+✅ Use complementary probability when it's easier
+✅ Draw diagrams or tables when helpful
+✅ Practice mental math for common fractions
+✅ Remember key probabilities: 1/2, 1/3, 1/4, 1/6, 1/8
+
+### Real Interview Scenarios
+
+#### Scenario 1: A/B Testing
+**Question**: "We ran an A/B test. Version A got 100 conversions from 1000 users, Version B got 120 from 1000. Is this statistically significant?"
+
+**Approach**: This leads to hypothesis testing, but starts with probability concepts!
+
+#### Scenario 2: ML Model Evaluation
+**Question**: "Our spam filter has 95% accuracy. Only 2% of emails are spam. What's P(email is spam | flagged as spam)?"
+
+**Connection**: Direct application of Bayes' Theorem!
+
+#### Scenario 3: Quality Control
+**Question**: "A factory produces items with 1% defect rate. We test 5 items. What's P(at least one defect)?"
+
+**Strategy**: Use complement: 1 - P(no defects in all 5)
+
+### Quick Reference Cheat Sheet
+
+| Formula | When to Use | Key Insight |
+|---------|-------------|-------------|
+| P(A|B) = P(A∩B)/P(B) | Conditional probability | Updates knowledge |
+| P(A∩B) = P(A)×P(B) | Independent events | Events don't affect each other |
+| P(A∪B) = P(A)+P(B)-P(A∩B) | OR scenarios | Avoid double counting |
+| E[X] = Σ(x×P(x)) | Expected value | Long-term average |
+| 1 - P(no success) | At least one success | Often easier calculation |
+
+---
+
+## Probability Distributions
+
+### Why Probability Distributions Matter in AI/ML
+
+**Core Insight**: Most ML algorithms assume or learn probability distributions. Understanding them helps you:
+- Choose the right model for your data
+- Understand model limitations
+- Debug when things go wrong
+- Optimize hyperparameters
+
+### Two Main Categories
+
+#### 1. Discrete Distributions (Countable Outcomes)
+**When to Use**: When you can count possible outcomes
+**Examples**: Number of customers, defects, emails, etc.
+
+#### 2. Continuous Distributions (Infinite Outcomes)
+**When to Use**: When outcomes are measurements
+**Examples**: Height, weight, time, temperature, etc.
+
+### Deep Dive: Discrete Distributions
+
+#### 1. Bernoulli Distribution - The Building Block
+**Intuition**: Single trial with success/failure outcome
+
+**Mathematical Definition**:
+```
+P(X = 1) = p (success)
+P(X = 0) = 1 - p (failure)
+```
+
+**Key Properties**:
+- **Mean**: E[X] = p
+- **Variance**: Var(X) = p(1 - p)
+- **PMF**: P(X = k) = pᵏ(1-p)¹⁻ᵏ for k ∈ {0,1}
+
+**Real-World Applications**:
+- Email spam/not spam classification
+- Medical test positive/negative
+- Customer purchase/no purchase
+
+**Interview Question**: "A coin has P(heads) = 0.6. What's the expected number of heads in 3 flips?"
+**Answer**: Each flip is Bernoulli(0.6), so E[total] = 3 × 0.6 = 1.8
+
+#### 2. Binomial Distribution - Multiple Bernoulli Trials
+**Intuition**: Counting successes in fixed number of independent trials
+
+**Mathematical Definition**:
+```
+X ~ Bin(n, p) where:
+n = number of trials
+p = probability of success
+X = number of successes
+```
+
+**Probability Mass Function**:
+P(X = k) = C(n, k) × pᵏ × (1-p)ⁿ⁻ᵏ
+
+Where C(n,k) = n! / (k! × (n-k)!) is the combination formula
+
+**Step-by-Step Intuition**:
+1. Choose which k trials are successes: C(n,k) ways
+2. Each of those k successes happens with probability pᵏ
+3. Each of the (n-k) failures happens with probability (1-p)ⁿ⁻ᵏ
+4. Multiply all together!
+
+**Key Properties**:
+- **Mean**: E[X] = n × p
+- **Variance**: Var(X) = n × p × (1-p)
+- **Shape**: Symmetric when p=0.5, skewed otherwise
+
+**Real-World Applications**:
+- Quality control: defective items in batch
+- Clinical trials: patients who respond to treatment
+- Marketing: customers who click on ad
+
+#### Binomial Interview Questions
+
+##### Q1: Email Campaign Analysis
+**Question**: An email campaign has 5% conversion rate. You send to 200 people. What's P(exactly 10 conversions)?
+
+**Step-by-Step Solution**:
+1. **Identify**: This is Binomial(n=200, p=0.05)
+2. **Formula**: P(X=10) = C(200,10) × 0.05¹⁰ × 0.95¹⁹⁰
+3. **Calculation**: ≈ 0.087 or 8.7%
+
+**Interview Insight**: This tests understanding of when binomial applies!
+
+**Follow-up Questions**:
+- What's P(at least 5 conversions)? (Use 1 - P(X ≤ 4))
+- What's expected number of conversions? (200 × 0.05 = 10)
+- What if conversion rate is unknown? How would you estimate it?
+
+##### Q2: Quality Control Problem
+**Question**: A factory produces items with 2% defect rate. What's probability that in 50 items, at most 1 is defective?
+
+**Solution**:
+P(at most 1) = P(0) + P(1)
+P(0) = C(50,0) × 0.02⁰ × 0.98⁵⁰ ≈ 0.364
+P(1) = C(50,1) × 0.02¹ × 0.98⁴⁹ ≈ 0.372
+Total ≈ 0.736 or 73.6%
+
+#### 3. Poisson Distribution - Rare Events
+**Intuition**: Number of events in fixed time/space interval when events are rare and independent
+
+**Mathematical Definition**:
+```
+X ~ Poisson(λ) where:
+λ = average rate of events
+X = number of events in interval
+```
+
+**Probability Mass Function**:
+P(X = k) = (λᵏ × e⁻λ) / k!
+
+**When to Use Poisson (CRITICAL FOR INTERVIEW)**:
+✅ Events are independent
+✅ Average rate is constant
+✅ Two events can't happen at exactly same time
+✅ Events are rare relative to observation period
+
+**Key Properties**:
+- **Mean**: E[X] = λ
+- **Variance**: Var(X) = λ (unique property!)
+- **Shape**: Right-skewed, becomes more symmetric as λ increases
+
+**Real-World Applications**:
+- Customer arrivals per hour
+- Website hits per minute
+- Defects per square foot
+- Calls to call center
+
+#### Poisson Interview Questions
+
+##### Q1: Call Center Analysis
+**Question**: Call center receives 2 calls per minute on average. What's P(exactly 3 calls in next minute)?
+
+**Solution**:
+λ = 2, k = 3
+P(X=3) = (2³ × e⁻²) / 3! = (8 × e⁻²) / 6 ≈ 0.180
+
+**Follow-up**:
+- P(no calls in 3 minutes)? (λ=6, P(X=0) = e⁻⁶ ≈ 0.00248)
+- P(at least 1 call in 30 seconds)? (λ=1, P(X≥1) = 1 - e⁻¹ ≈ 0.632)
+
+##### Q2: Website Traffic
+**Question**: Website gets 50 hits per hour. What's P(60 or more hits in an hour)?
+
+**Interview Strategy**:
+1. **Identify**: Poisson(λ=50)
+2. **Challenge**: Direct calculation of P(X≥60) requires summing many terms
+3. **Practical Approach**: Use normal approximation or computational tool
+4. **Key Insight**: Show understanding of approximation methods
+
+### Deep Dive: Continuous Distributions
+
+#### 1. Normal Distribution - The Most Important One
+**Intuition**: Bell-shaped curve that appears everywhere in nature
+
+**Mathematical Definition**:
+```
+X ~ N(μ, σ²) where:
+μ = mean (center)
+σ² = variance (spread)
+σ = standard deviation
+```
+
+**Probability Density Function**:
+f(x) = (1/√(2πσ²)) × e^(-(x-μ)²/(2σ²))
+
+**Why Normal Distribution is CRUCIAL**:
+1. **Central Limit Theorem**: Means of samples become normal
+2. **Many natural phenomena follow it**
+3. **Foundation of statistical inference**
+4. **Many ML algorithms assume normality**
+
+**Key Properties**:
+- **Symmetric**: Mean = Median = Mode = μ
+- **68-95-99.7 Rule**:
+  - 68% within μ ± σ
+  - 95% within μ ± 2σ
+  - 99.7% within μ ± 3σ
+
+**Standard Normal Transformation**:
+```
+Z = (X - μ) / σ ~ N(0, 1)
+```
+
+**Interview Tip**: Always standardize when working with normal distributions!
+
+#### Normal Distribution Interview Questions
+
+##### Q1: Height Distribution
+**Question**: Male heights follow N(175, 25) cm². What % are taller than 185 cm?
+
+**Step-by-Step Solution**:
+1. **Standardize**: Z = (185-175)/√25 = 10/5 = 2
+2. **Lookup**: P(Z > 2) = 1 - P(Z ≤ 2) = 1 - 0.9772 = 0.0228
+3. **Answer**: 2.28% are taller than 185 cm
+
+**Follow-up Questions**:
+- What height marks the 90th percentile? (Find z for 0.90, then x = μ + zσ)
+- What's P(height between 170 and 180 cm)?
+- If we sample 100 men, what's distribution of average height?
+
+##### Q2: Quality Control Tolerance
+**Question**: Part lengths follow N(10, 0.04) cm². Acceptable range: 9.8 to 10.2 cm. What % of parts are acceptable?
+
+**Solution**:
+1. **Lower bound**: Z₁ = (9.8-10)/0.2 = -1
+2. **Upper bound**: Z₂ = (10.2-10)/0.2 = 1
+3. **Probability**: P(-1 < Z < 1) = P(Z < 1) - P(Z < -1) = 0.8413 - 0.1587 = 0.6826
+4. **Answer**: 68.26% are acceptable
+
+**Interview Insight**: Tests understanding of practical applications!
+
+#### 2. Exponential Distribution - Waiting Times
+**Intuition**: Time until next event when events happen at constant rate
+
+**Mathematical Definition**:
+```
+X ~ Exp(λ) where:
+λ = rate parameter (events per time unit)
+X = waiting time until next event
+```
+
+**Probability Density Function**:
+f(x) = λ × e^(-λx), x ≥ 0
+
+**Cumulative Distribution Function**:
+P(X ≤ x) = 1 - e^(-λx)
+
+**Key Properties**:
+- **Mean**: E[X] = 1/λ
+- **Variance**: Var(X) = 1/λ²
+- **Memoryless Property**: P(X > s+t | X > s) = P(X > t)
+
+**Memoryless Property Explained**:
+"The probability of waiting additional time t doesn't depend on how long you've already waited!"
+
+**Real-World Applications**:
+- Time between customer arrivals
+- Time until machine failure
+- Time between website hits
+
+#### Exponential Interview Questions
+
+##### Q1: Customer Service Analysis
+**Question**: Average customer arrival rate: 10 per hour. What's P(next customer arrives within 5 minutes)?
+
+**Solution**:
+λ = 10 per hour = 10/60 per minute = 1/6 per minute
+P(X ≤ 5) = 1 - e^(-λx) = 1 - e^(-(1/6)×5) = 1 - e^(-5/6) ≈ 0.565
+
+**Follow-up**:
+- What's P(no customers for 15 minutes? P(X > 15) = e^(-15/6) ≈ 0.082)
+- How does this relate to Poisson? (Exponential models inter-arrival times, Poisson models count)
+
+##### Q2: Memoryless Property Demonstration
+**Question**: If you've waited 10 minutes for a bus that comes on average every 15 minutes, what's P(bus arrives in next 5 minutes)?
+
+**Using Memoryless Property**:
+P(X ≤ 15 | X > 10) = P(X ≤ 5) = 1 - e^(-5/15) = 1 - e^(-1/3)
+
+**Interview Insight**: This demonstrates understanding of memoryless property!
+
+### Distribution Selection Guide
+
+| Situation | Distribution | Why? | Key Parameters |
+|-----------|--------------|------|----------------|
+| Single trial, success/failure | Bernoulli | Basic building block | p |
+| Fixed trials, count successes | Binomial | Multiple Bernoulli | n, p |
+| Rare events, fixed interval | Poisson | Events independent, rare | λ |
+| Natural phenomena, measurements | Normal | CLT, common in nature | μ, σ² |
+| Waiting times between events | Exponential | Constant rate, memoryless | λ |
+
+### Interview Strategy for Distribution Questions
+
+#### Step-by-Step Approach:
+1. **Identify the scenario**: What are we measuring?
+2. **Choose appropriate distribution**: Based on problem characteristics
+3. **Identify parameters**: n, p, λ, μ, σ
+4. **Set up equation**: Use correct PMF/PDF
+5. **Calculate systematically**: Show each step
+6. **Interpret results**: What does this mean in context?
+
+#### Common Interview Mistakes:
+❌ Using binomial when Poisson is appropriate
+❌ Forgetting to check distribution assumptions
+❌ Confusing rate λ with mean in exponential
+❌ Not standardizing normal distributions
+❌ Mixing up PMF and CDF
+
+#### Pro Tips:
+✅ Always state assumptions clearly
+✅ Check if discrete or continuous first
+✅ Remember key properties (mean, variance)
+✅ Connect to real-world applications
+✅ Practice mental approximations
+
+### Advanced Topics (Bonus for Strong Candidates)
+
+#### 1. Distribution Relationships
+```
+Binomial → Poisson (when n large, p small, np = λ)
+Binomial → Normal (when n large, p not too close to 0 or 1)
+Exponential → Gamma (sum of exponential variables)
+Normal → Chi-square (sum of squared normal variables)
+```
+
+#### 2. Moment Generating Functions
+**Why Important**: Uniquely characterizes distributions, useful for proving theorems
+
+**Key Property**: If two distributions have same MGF, they are identical
+
+#### 3. Truncated Distributions
+**Real Application**: Censored data, bounded measurements
+
+### Quick Reference Formula Sheet
+
+#### Discrete Distributions:
+```
+Bernoulli: P(X=k) = pᵏ(1-p)¹⁻ᵏ, E[X]=p, Var[X]=p(1-p)
+Binomial: P(X=k) = C(n,k)pᵏ(1-p)ⁿ⁻ᵏ, E[X]=np, Var[X]=np(1-p)
+Poisson: P(X=k) = (λᵏe⁻λ)/k!, E[X]=λ, Var[X]=λ
+```
+
+#### Continuous Distributions:
+```
+Normal: f(x) = (1/√(2πσ²))e^(-(x-μ)²/(2σ²))
+Standard Normal: Z = (X-μ)/σ
+Exponential: f(x) = λe^(-λx), E[X]=1/λ, Var[X]=1/λ²
+```
 
 **Real Interview Question**: "A card is drawn from a standard deck. What's the probability it's a heart given that it's a face card?"
 
