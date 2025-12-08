@@ -15,18 +15,7 @@ A comprehensive learning repository for placement preparation covering programmi
   - Structures, classes, and code organization
 - **Target**: C++ interview preparation and system programming
 
-### 2. Data Structures & Algorithms Track 📊
-- **Location**: [DSA/](DSA/)
-- **Focus**: Complete DSA coverage from basics to advanced
-- **Chapters**: 18 core chapters including:
-  - Sorting, Arrays, Hashing, Binary Search
-  - Recursion, Linked Lists, Bit Manipulation
-  - Greedy Algorithms, Two Pointers, Stack/Queues
-  - Binary Trees, BSTs, Heaps, Graphs
-  - Dynamic Programming, Tries, String Algorithms, Mathematics
-- **Target**: Algorithmic problem solving and coding interviews
-
-### 3. Computer Science Fundamentals 💻
+### 2. Computer Science Fundamentals 💻
 - **Location**: [CS fundamentals/](CS%20fundamentals/)
 - **Focus**: Core CS concepts for software engineering interviews
 - **Modules**:
@@ -36,7 +25,7 @@ A comprehensive learning repository for placement preparation covering programmi
   - **Computer Networks**: Comprehensive networking concepts and interview preparation materials
 - **Target**: System design, backend development, and software engineering interviews
 
-### 4. Mathematics for Machine Learning 🧮
+### 3. Mathematics for Machine Learning 🧮
 - **Location**: [Maths for ML/](Maths%20for%20ML/)
 - **Focus**: Mathematical foundations for data science and ML interviews
 - **Modules**:
@@ -54,24 +43,21 @@ A comprehensive learning repository for placement preparation covering programmi
 
 ### Phase 1: Foundation (3-4 months)
 1. **C++ Fundamentals** - Complete Chapters 1-6
-2. **Basic DSA** - Complete Chapters 1-6
-3. **CS Fundamentals** - API Design basics + OS fundamentals
-4. **Mathematics** - Linear algebra basics + Probability fundamentals
-5. **Practice** - 50+ easy problems
+2. **CS Fundamentals** - API Design basics + OS fundamentals
+3. **Mathematics** - Linear algebra basics + Probability fundamentals
+4. **Practice** - 50+ easy problems
 
 ### Phase 2: Core Concepts (4-5 months)
 1. **Advanced C++** - Complete Chapters 7-9
-2. **Core DSA** - Complete Chapters 7-15
-3. **Database Systems** - SQL mastery + normalization + indexing
-4. **Advanced Math** - Calculus + Advanced Statistics
-5. **Practice** - 100+ medium problems
+2. **Database Systems** - SQL mastery + normalization + indexing
+3. **Advanced Math** - Calculus + Advanced Statistics
+4. **Practice** - 100+ medium problems
 
 ### Phase 3: Specialization (3-4 months)
 1. **API Design** - Advanced patterns + Security + Performance
-2. **Advanced DSA** - Complete Chapters 16-18
-3. **Network Concepts** - Comprehensive networking knowledge
-4. **Math Applications** - ML-specific mathematical concepts
-5. **Practice** - 100+ hard problems
+2. **Network Concepts** - Comprehensive networking knowledge
+3. **Math Applications** - ML-specific mathematical concepts
+4. **Practice** - 100+ hard problems
 
 ### Phase 4: Interview Preparation (2-3 months)
 1. **Mock Interviews** - Regular practice sessions
@@ -114,7 +100,6 @@ A comprehensive learning repository for placement preparation covering programmi
 
 ### Books
 - **C++**: The C++ Programming Language by Bjarne Stroustrup
-- **DSA**: Introduction to Algorithms by CLRS
 - **API Design**: RESTful Web APIs by Leonard Richardson
 - **Database**: Database System Concepts by Korth & Silberschatz
 - **OS**: Operating System Concepts by Silberschatz
@@ -127,7 +112,6 @@ A comprehensive learning repository for placement preparation covering programmi
 
 ### YouTube Channels
 - **C++**: The Cherno, CppNuts
-- **DSA**: Abdul Bari, Gaurav Sen
 - **API Design**: Academind, Traversy Media
 - **Database**: FreeCodeCamp, Programming with Mosh
 - **Operating Systems**: Operating Systems by Georgia Tech
@@ -140,11 +124,11 @@ A comprehensive learning repository for placement preparation covering programmi
 ## 🏆 Progress Tracking
 
 ### Checkpoints
-- [ ] **Month 1**: C++ basics + Basic DSA + CS Fundamentals
-- [ ] **Month 2**: OOP + Data Structures + API Design basics
-- [ ] **Month 3**: STL + Algorithms + Database fundamentals
+- [ ] **Month 1**: C++ basics + CS Fundamentals
+- [ ] **Month 2**: OOP + API Design basics
+- [ ] **Month 3**: STL + Database fundamentals
 - [ ] **Month 4**: Advanced C++ + Math fundamentals
-- [ ] **Month 5**: Graph Algorithms + OS concepts + Advanced Math
+- [ ] **Month 5**: OS concepts + Advanced Math
 - [ ] **Month 6**: Network concepts + ML math + System design
 - [ ] **Month 7**: Full stack integration + Advanced topics
 - [ ] **Month 8**: Interview Prep + Mock Tests
